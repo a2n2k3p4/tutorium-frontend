@@ -17,7 +17,7 @@ class ProfilePage extends StatelessWidget {
           fontWeight: FontWeight.normal,
         ),
       ),
-      body: Center(child: Text("Profile Page")),
+      body: Center(child: const Text("Profile Page")),
     );
   }
 }
