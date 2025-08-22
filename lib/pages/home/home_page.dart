@@ -17,7 +17,7 @@ class HomePage extends StatelessWidget {
           fontWeight: FontWeight.normal,
         ),
       ),
-      body: Center(child: Text("Home Page")),
+      body: Center(child: const Text("Home Page")),
     );
   }
 }
