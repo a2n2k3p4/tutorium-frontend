@@ -17,7 +17,7 @@ class SearchPage extends StatelessWidget {
           fontWeight: FontWeight.normal,
         ),
       ),
-      body: Center(child: Text("Search Page")),
+      body: Center(child: const Text("Search Page")),
     );
   }
 }
