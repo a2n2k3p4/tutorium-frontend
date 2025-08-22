@@ -1,3 +1,5 @@
+// test/widget_test.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tutorium_frontend/main.dart';
@@ -8,8 +10,10 @@ void main() {
     await tester.pumpWidget(const MyApp());
 
     // 2. Verify that the HomePage is visible.
-    // We expect to find the text 'Home' in the AppBar and 'Home Page' in the body.
-    expect(find.text('Home'), findsOneWidget);
+    // We look for a 'Home' Text widget that is a descendant of an AppBar.
+    expect(find.descendant(of: find.byType(AppBar), matching: find.text('Home')), findsOneWidget);
+
+    // This check is still good because "Home Page" is unique.
     expect(find.text('Home Page'), findsOneWidget);
 
     // 3. Verify that the SearchPage is not visible.
@@ -22,10 +26,7 @@ void main() {
     await tester.pump();
 
     // 6. Verify that navigation was successful.
-    // We now expect to see the SearchPage.
     expect(find.text('Search Page'), findsOneWidget);
-
-    // And the HomePage should no longer be visible.
     expect(find.text('Home Page'), findsNothing);
   });
 }
