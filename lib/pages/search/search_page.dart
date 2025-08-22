@@ -8,7 +8,7 @@ class SearchPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Padding(
-          padding: const EdgeInsets.only(top: 30),
+          padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
           child: Text("Search"),
         ),
         titleTextStyle: const TextStyle(
@@ -17,7 +17,7 @@ class SearchPage extends StatelessWidget {
           fontWeight: FontWeight.normal,
         ),
       ),
-      body: Center(child: Text("Search Page")),
+      body: Center(child: const Text("Search Page")),
     );
   }
 }

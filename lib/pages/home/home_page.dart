@@ -8,7 +8,7 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Padding(
-          padding: const EdgeInsets.only(top: 30),
+          padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
           child: const Text("Home"),
         ),
         titleTextStyle: const TextStyle(
@@ -17,7 +17,7 @@ class HomePage extends StatelessWidget {
           fontWeight: FontWeight.normal,
         ),
       ),
-      body: Center(child: Text("Home Page")),
+      body: Center(child: const Text("Home Page")),
     );
   }
 }
