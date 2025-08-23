@@ -1,30 +1,34 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:tutorium_frontend/main.dart';
+import 'package:network_image_mock/network_image_mock.dart';
+import 'package:tutorium_frontend/home/learner_home_page.dart';
+import 'package:tutorium_frontend/widgets/schedule_card.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('LearnerHomePage shows correctly', (WidgetTester tester) async {
+    // Mock network images
+    await mockNetworkImagesFor(() async {
+      // Build LearnerHomePage
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LearnerHomePage(
+            onSwitch: () {}, // callback สำหรับปุ่ม switch
+          ),
+        ),
+      );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+      // ตรวจสอบ AppBar title
+      expect(find.text('Learner Home'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+      // ตรวจสอบ Upcoming Schedule title
+      expect(find.text('Upcoming Schedule'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      // ตรวจสอบว่า ScheduleCard ปรากฏ
+      expect(find.byType(ScheduleCard), findsWidgets);
+
+      // ตรวจสอบปุ่ม switch และไอคอน school
+      expect(find.byIcon(Icons.change_circle), findsOneWidget);
+      expect(find.byIcon(Icons.school_rounded), findsOneWidget);
+    });
   });
 }
