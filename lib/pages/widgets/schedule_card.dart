@@ -52,6 +52,7 @@ class ScheduleCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const SizedBox(height: 6),
                 Text(
                   className,
                   style: const TextStyle(
@@ -59,7 +60,6 @@ class ScheduleCard extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 4),
                 Text(
                   '${date.day}/${date.month}/${date.year} | ${formatTime24(startTime)} - ${formatTime24(endTime)}',
                   style: const TextStyle(fontSize: 13.0),
