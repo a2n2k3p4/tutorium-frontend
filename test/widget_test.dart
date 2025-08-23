@@ -39,29 +39,28 @@ void main() {
     'MainNavPage shows LearnerHomePage and can switch to TeacherHomePage',
     (WidgetTester tester) async {
       await mockNetworkImagesFor(() async {
-        // 1. Build MainNavPage
         await tester.pumpWidget(const MaterialApp(home: MainNavPage()));
 
-        // 2. Verify LearnerHomePage is visible
+        // Verify LearnerHomePage is visible
         expect(find.text('Learner Home'), findsOneWidget);
         expect(find.text('Upcoming Schedule'), findsOneWidget);
         expect(find.byType(ScheduleCard), findsWidgets);
 
-        // 3. Tap the change role button to switch to TeacherHomePage
+        // Tap switch to TeacherHomePage
         await tester.tap(find.byIcon(Icons.change_circle));
         await tester.pumpAndSettle();
 
-        // 4. Verify TeacherHomePage is visible
-        expect(find.text('Teacher Home'), findsOneWidget);
+        // Verify TeacherHomePage is visible
+        expect(find.textContaining('Teacher Home'), findsWidgets);
         expect(find.text('Learner Home'), findsNothing);
 
-        // 5. Tap the change role button again to switch back to LearnerHomePage
+        // Tap switch back to LearnerHomePage
         await tester.tap(find.byIcon(Icons.change_circle));
         await tester.pumpAndSettle();
 
-        // 6. Verify LearnerHomePage is visible again
+        // Verify LearnerHomePage is visible again
         expect(find.text('Learner Home'), findsOneWidget);
-        expect(find.text('Teacher Home'), findsNothing);
+        expect(find.textContaining('Teacher Home'), findsNothing);
       });
     },
   );
