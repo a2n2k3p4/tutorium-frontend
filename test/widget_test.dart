@@ -24,14 +24,14 @@ void main() {
     expect(find.text('Upcoming Schedule'), findsOneWidget);
 
     // 4. Verify that the SearchPage is not visible.
-    expect(find.text('Search Page'), findsNothing);
+    expect(find.text('Search'), findsNothing);
 
     // 5. Tap the 'Search' icon in the bottom navigation bar.
     await tester.tap(find.byIcon(Icons.search));
     await tester.pump();
 
     // 6. Verify that navigation was successful.
-    expect(find.text('Search Page'), findsOneWidget);
+    expect(find.text('Search'), findsOneWidget);
     expect(find.text('Upcoming Schedule'), findsNothing);
   });
 
