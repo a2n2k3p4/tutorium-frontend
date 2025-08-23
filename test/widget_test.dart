@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network_image_mock/network_image_mock.dart';
 import 'package:tutorium_frontend/main.dart';
-import 'package:tutorium_frontend/home/learner_home_page.dart';
-import 'package:tutorium_frontend/home/teacher_home.dart';
-import 'package:tutorium_frontend/widgets/schedule_card.dart';
+import 'package:tutorium_frontend/pages/home/learner_home.dart';
+import 'package:tutorium_frontend/pages/home/teacher_home.dart';
+import 'package:tutorium_frontend/pages/widgets/schedule_card.dart';
 
 void main() {
   testWidgets('App shows HomePage initially and can navigate', (
