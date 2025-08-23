@@ -1,10 +1,6 @@
-// test/widget_test.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tutorium_frontend/main.dart';
-import 'package:tutorium_frontend/pages/home/learner_home.dart';
-import 'package:tutorium_frontend/pages/home/teacher_home.dart';
 import 'package:tutorium_frontend/pages/main_nav_page.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_card.dart';
 
@@ -15,23 +11,28 @@ void main() {
     // 1. Build the app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // 2. Verify that the HomePage is visible.
+    // 2. Verify that the AppBar title is "Learner Home".
     expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('Home')),
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Learner Home'),
+      ),
       findsOneWidget,
     );
-    expect(find.text('Learner Page'), findsOneWidget);
 
-    // 3. Verify that the SearchPage is not visible.
+    // 3. Verify that the "Upcoming Schedule" text is visible.
+    expect(find.text('Upcoming Schedule'), findsOneWidget);
+
+    // 4. Verify that the SearchPage is not visible.
     expect(find.text('Search Page'), findsNothing);
 
-    // 4. Tap the 'Search' icon in the bottom navigation bar.
+    // 5. Tap the 'Search' icon in the bottom navigation bar.
     await tester.tap(find.byIcon(Icons.search));
     await tester.pump();
 
-    // 5. Verify that navigation was successful.
+    // 6. Verify that navigation was successful.
     expect(find.text('Search Page'), findsOneWidget);
-    expect(find.text('Learner Page'), findsNothing);
+    expect(find.text('Upcoming Schedule'), findsNothing);
   });
 
   testWidgets(
@@ -46,22 +47,29 @@ void main() {
         ),
       );
 
-      // Check LearnerHomePage
+      // 1. Check LearnerHomePage
       expect(find.text('Learner Home'), findsOneWidget);
       expect(find.text('Upcoming Schedule'), findsOneWidget);
       expect(find.byType(ScheduleCard), findsWidgets);
 
-      // Switch to TeacherHomePage
+      // 2. Switch to TeacherHomePage
       await tester.tap(find.byIcon(Icons.change_circle));
       await tester.pumpAndSettle();
 
-      expect(find.text('Teacher Home'), findsOneWidget);
-      expect(find.text('Learner Home'), findsNothing);
+      // 3. Check TeacherHomePage
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('Teacher Home'),
+        ),
+        findsOneWidget,
+      );
 
-      // Switch back to LearnerHomePage
+      // 4. Switch back to LearnerHomePage
       await tester.tap(find.byIcon(Icons.change_circle));
       await tester.pumpAndSettle();
 
+      // 5. Check LearnerHomePage again
       expect(find.text('Learner Home'), findsOneWidget);
       expect(find.text('Teacher Home'), findsNothing);
     },

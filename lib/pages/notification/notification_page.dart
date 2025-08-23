@@ -17,7 +17,7 @@ class NotificationPage extends StatelessWidget {
           fontWeight: FontWeight.normal,
         ),
       ),
-      body: Center(child: const Text("Notification Page")),
+      body: Center(child: const Text("Nothing")),
     );
   }
 }
