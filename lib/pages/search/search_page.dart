@@ -9,7 +9,7 @@ class SearchPage extends StatelessWidget {
       appBar: AppBar(
         title: Padding(
           padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
-          child: Text("Search"),
+          child: Text("Search Class"),
         ),
         titleTextStyle: const TextStyle(
           color: Colors.black,
