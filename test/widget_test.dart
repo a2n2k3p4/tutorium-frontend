@@ -6,6 +6,7 @@ import 'package:network_image_mock/network_image_mock.dart';
 import 'package:tutorium_frontend/main.dart';
 import 'package:tutorium_frontend/pages/home/learner_home.dart';
 import 'package:tutorium_frontend/pages/home/teacher_home.dart';
+import 'package:tutorium_frontend/pages/main_nav_page.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_card.dart';
 
 void main() {
