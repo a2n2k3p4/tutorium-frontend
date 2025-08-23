@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'home/home_page.dart';
+import 'home/learner_home.dart';
+import 'home/teacher_home.dart';
 import 'search/search_page.dart';
 import 'notification/notification_page.dart';
 import 'profile/profile_page.dart';
@@ -13,16 +14,25 @@ class MainNavPage extends StatefulWidget {
 
 class _MainNavPageState extends State<MainNavPage> {
   int _currentIndex = 0;
+  bool isLearner = true;
 
-  final List<Widget> _pages = const [
-    HomePage(),
-    SearchPage(),
-    NotificationPage(),
-    ProfilePage(),
-  ];
+  void toggleRole() {
+    setState(() {
+      isLearner = !isLearner;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> _pages = [
+      isLearner
+          ? LearnerHomePage(onSwitch: toggleRole)
+          : TeacherHomePage(onSwitch: toggleRole),
+      const SearchPage(),
+      const NotificationPage(),
+      const ProfilePage(),
+    ];
+
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -30,6 +40,9 @@ class _MainNavPageState extends State<MainNavPage> {
         onTap: (index) {
           setState(() {
             _currentIndex = index;
+            if (_currentIndex == 0) {
+              isLearner = true;
+            }
           });
         },
         type: BottomNavigationBarType.fixed,
