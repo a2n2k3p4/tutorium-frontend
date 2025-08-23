@@ -15,8 +15,7 @@ class LearnerHomePage extends StatelessWidget {
         'date': '2025-07-25',
         'startTime': '13:00',
         'endTime': '16:00',
-        'imageUrl':
-            'https://images.unsplash.com/photo-1511376777868-611b54f68947?auto=format&fit=crop&w=120&h=100&q=80',
+        'imagePath': 'assets/images/guitar.jpg',
       },
       {
         'className': 'Piano class by Jane',
@@ -25,8 +24,7 @@ class LearnerHomePage extends StatelessWidget {
         'date': '2025-07-26',
         'startTime': '13:00',
         'endTime': '16:00',
-        'imageUrl':
-            'https://images.unsplash.com/photo-1513883049090-d0b7439799bf?auto=format&fit=crop&w=120&h=100&q=80',
+        'imagePath': 'assets/images/piano.jpg',
       },
     ];
 
@@ -112,7 +110,7 @@ class LearnerHomePage extends StatelessWidget {
                         date: parseDate(item['date']),
                         startTime: parseTime(item['startTime']),
                         endTime: parseTime(item['endTime']),
-                        imageUrl: item['imageUrl'],
+                        imagePath: item['imagePath'],
                       ),
                     );
                   },

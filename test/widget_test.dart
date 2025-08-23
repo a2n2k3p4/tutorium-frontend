@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:network_image_mock/network_image_mock.dart';
 import 'package:tutorium_frontend/main.dart';
 import 'package:tutorium_frontend/pages/home/learner_home.dart';
 import 'package:tutorium_frontend/pages/home/teacher_home.dart';
@@ -38,35 +37,33 @@ void main() {
   testWidgets(
     'MainNavPage shows LearnerHomePage and can switch to TeacherHomePage',
     (WidgetTester tester) async {
-      await mockNetworkImagesFor(() async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: MediaQuery(
-              data: const MediaQueryData(size: Size(400, 800)),
-              child: const MainNavPage(),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(400, 800)),
+            child: const MainNavPage(),
           ),
-        );
+        ),
+      );
 
-        // Check LearnerHomePage
-        expect(find.text('Learner Home'), findsOneWidget);
-        expect(find.text('Upcoming Schedule'), findsOneWidget);
-        expect(find.byType(ScheduleCard), findsWidgets);
+      // Check LearnerHomePage
+      expect(find.text('Learner Home'), findsOneWidget);
+      expect(find.text('Upcoming Schedule'), findsOneWidget);
+      expect(find.byType(ScheduleCard), findsWidgets);
 
-        // Switch to TeacherHomePage
-        await tester.tap(find.byIcon(Icons.change_circle));
-        await tester.pumpAndSettle();
+      // Switch to TeacherHomePage
+      await tester.tap(find.byIcon(Icons.change_circle));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Teacher Home'), findsOneWidget);
-        expect(find.text('Learner Home'), findsNothing);
+      expect(find.text('Teacher Home'), findsOneWidget);
+      expect(find.text('Learner Home'), findsNothing);
 
-        // Switch back to LearnerHomePage
-        await tester.tap(find.byIcon(Icons.change_circle));
-        await tester.pumpAndSettle();
+      // Switch back to LearnerHomePage
+      await tester.tap(find.byIcon(Icons.change_circle));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Learner Home'), findsOneWidget);
-        expect(find.text('Teacher Home'), findsNothing);
-      });
+      expect(find.text('Learner Home'), findsOneWidget);
+      expect(find.text('Teacher Home'), findsNothing);
     },
   );
 }

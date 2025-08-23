@@ -7,7 +7,7 @@ class ScheduleCard extends StatelessWidget {
   final DateTime date;
   final TimeOfDay startTime;
   final TimeOfDay endTime;
-  final String imageUrl;
+  final String imagePath;
 
   const ScheduleCard({
     Key? key,
@@ -17,7 +17,7 @@ class ScheduleCard extends StatelessWidget {
     required this.date,
     required this.startTime,
     required this.endTime,
-    required this.imageUrl,
+    required this.imagePath,
   }) : super(key: key);
 
   String formatTime24(TimeOfDay time) {
@@ -40,8 +40,8 @@ class ScheduleCard extends StatelessWidget {
               topLeft: Radius.circular(15),
               bottomLeft: Radius.circular(15),
             ),
-            child: Image.network(
-              imageUrl,
+            child: Image.asset(
+              imagePath,
               width: 120,
               height: 100,
               fit: BoxFit.cover,
