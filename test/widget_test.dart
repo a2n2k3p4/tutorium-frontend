@@ -10,7 +10,7 @@ import 'package:tutorium_frontend/pages/main_nav_page.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_card.dart';
 
 void main() {
-  testWidgets('App shows HomePage initially and can navigate', (
+  testWidgets('App shows LearnerPage initially and can navigate', (
     WidgetTester tester,
   ) async {
     // 1. Build the app and trigger a frame.
@@ -21,7 +21,7 @@ void main() {
       find.descendant(of: find.byType(AppBar), matching: find.text('Home')),
       findsOneWidget,
     );
-    expect(find.text('Home Page'), findsOneWidget);
+    expect(find.text('Learner Page'), findsOneWidget);
 
     // 3. Verify that the SearchPage is not visible.
     expect(find.text('Search Page'), findsNothing);
@@ -32,35 +32,40 @@ void main() {
 
     // 5. Verify that navigation was successful.
     expect(find.text('Search Page'), findsOneWidget);
-    expect(find.text('Home Page'), findsNothing);
+    expect(find.text('Learner Page'), findsNothing);
   });
 
   testWidgets(
     'MainNavPage shows LearnerHomePage and can switch to TeacherHomePage',
     (WidgetTester tester) async {
       await mockNetworkImagesFor(() async {
-        await tester.pumpWidget(const MaterialApp(home: MainNavPage()));
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(size: Size(400, 800)),
+              child: const MainNavPage(),
+            ),
+          ),
+        );
 
-        // Verify LearnerHomePage is visible
+        // Check LearnerHomePage
         expect(find.text('Learner Home'), findsOneWidget);
         expect(find.text('Upcoming Schedule'), findsOneWidget);
         expect(find.byType(ScheduleCard), findsWidgets);
 
-        // Tap switch to TeacherHomePage
+        // Switch to TeacherHomePage
         await tester.tap(find.byIcon(Icons.change_circle));
         await tester.pumpAndSettle();
 
-        // Verify TeacherHomePage is visible
-        expect(find.textContaining('Teacher Home'), findsWidgets);
+        expect(find.text('Teacher Home'), findsOneWidget);
         expect(find.text('Learner Home'), findsNothing);
 
-        // Tap switch back to LearnerHomePage
+        // Switch back to LearnerHomePage
         await tester.tap(find.byIcon(Icons.change_circle));
         await tester.pumpAndSettle();
 
-        // Verify LearnerHomePage is visible again
         expect(find.text('Learner Home'), findsOneWidget);
-        expect(find.textContaining('Teacher Home'), findsNothing);
+        expect(find.text('Teacher Home'), findsNothing);
       });
     },
   );
