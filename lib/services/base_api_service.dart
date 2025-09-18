@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +9,7 @@ import 'api_config.dart';
 
 class BaseApiService {
   static const String _tokenKey = 'auth_token';
+  static const Duration _defaultTimeout = Duration(seconds: 20);
 
   // Get stored token
   Future<String?> getToken() async {
@@ -48,9 +51,15 @@ class BaseApiService {
     final headers = await getHeaders(includeAuth: includeAuth);
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     _logRequest('GET', url.toString(), headers: headers);
-    final res = await http.get(url, headers: headers);
-    _logResponse('GET', url.toString(), res);
-    return res;
+    try {
+      final res = await http.get(url, headers: headers).timeout(_defaultTimeout);
+      _logResponse('GET', url.toString(), res);
+      return res;
+    } on TimeoutException {
+      throw ApiException(408, {'error': 'Request timeout'});
+    } on SocketException catch (e) {
+      throw ApiException(503, {'error': 'Network error', 'detail': e.message});
+    }
   }
 
   // POST request
@@ -62,9 +71,17 @@ class BaseApiService {
     final headers = await getHeaders(includeAuth: includeAuth);
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     _logRequest('POST', url.toString(), headers: headers, body: body);
-    final res = await http.post(url, headers: headers, body: json.encode(body));
-    _logResponse('POST', url.toString(), res);
-    return res;
+    try {
+      final res = await http
+          .post(url, headers: headers, body: json.encode(body))
+          .timeout(_defaultTimeout);
+      _logResponse('POST', url.toString(), res);
+      return res;
+    } on TimeoutException {
+      throw ApiException(408, {'error': 'Request timeout'});
+    } on SocketException catch (e) {
+      throw ApiException(503, {'error': 'Network error', 'detail': e.message});
+    }
   }
 
   // PUT request
@@ -76,9 +93,17 @@ class BaseApiService {
     final headers = await getHeaders(includeAuth: includeAuth);
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     _logRequest('PUT', url.toString(), headers: headers, body: body);
-    final res = await http.put(url, headers: headers, body: json.encode(body));
-    _logResponse('PUT', url.toString(), res);
-    return res;
+    try {
+      final res = await http
+          .put(url, headers: headers, body: json.encode(body))
+          .timeout(_defaultTimeout);
+      _logResponse('PUT', url.toString(), res);
+      return res;
+    } on TimeoutException {
+      throw ApiException(408, {'error': 'Request timeout'});
+    } on SocketException catch (e) {
+      throw ApiException(503, {'error': 'Network error', 'detail': e.message});
+    }
   }
 
   // DELETE request
@@ -89,25 +114,40 @@ class BaseApiService {
     final headers = await getHeaders(includeAuth: includeAuth);
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     _logRequest('DELETE', url.toString(), headers: headers);
-    final res = await http.delete(url, headers: headers);
-    _logResponse('DELETE', url.toString(), res);
-    return res;
+    try {
+      final res = await http
+          .delete(url, headers: headers)
+          .timeout(_defaultTimeout);
+      _logResponse('DELETE', url.toString(), res);
+      return res;
+    } on TimeoutException {
+      throw ApiException(408, {'error': 'Request timeout'});
+    } on SocketException catch (e) {
+      throw ApiException(503, {'error': 'Network error', 'detail': e.message});
+    }
   }
 
   // Handle API response
   Map<String, dynamic> handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isNotEmpty) {
-        return json.decode(response.body);
+        try {
+          return json.decode(response.body);
+        } on FormatException {
+          return {'raw': response.body};
+        }
       }
       return {'success': true};
     } else {
-      throw ApiException(
-        response.statusCode,
-        response.body.isNotEmpty
-            ? json.decode(response.body)
-            : {'error': 'Unknown error'},
-      );
+      Map<String, dynamic> payload = {'error': 'Unknown error'};
+      if (response.body.isNotEmpty) {
+        try {
+          payload = json.decode(response.body);
+        } on FormatException {
+          payload = {'raw': response.body};
+        }
+      }
+      throw ApiException(response.statusCode, payload);
     }
   }
 
@@ -115,16 +155,25 @@ class BaseApiService {
   List<dynamic> handleListResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isNotEmpty) {
-        return json.decode(response.body) as List<dynamic>;
+        try {
+          final decoded = json.decode(response.body);
+          if (decoded is List) return decoded;
+          return [decoded];
+        } on FormatException {
+          return [];
+        }
       }
       return [];
     } else {
-      throw ApiException(
-        response.statusCode,
-        response.body.isNotEmpty
-            ? json.decode(response.body)
-            : {'error': 'Unknown error'},
-      );
+      Map<String, dynamic> payload = {'error': 'Unknown error'};
+      if (response.body.isNotEmpty) {
+        try {
+          payload = json.decode(response.body);
+        } on FormatException {
+          payload = {'raw': response.body};
+        }
+      }
+      throw ApiException(response.statusCode, payload);
     }
   }
 }
