@@ -1,8 +1,14 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/base_api_service.dart';
+import '../../services/api_config.dart';
+import '../../services/api_provider.dart';
+import '../../models/user_models.dart';
 
 class ApiConsolePage extends StatefulWidget {
   const ApiConsolePage({super.key});
@@ -20,12 +26,45 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
 
   String _output = '';
   bool _sending = false;
+  bool _syncingSpec = false;
+  bool _showFavorites = true;
+  bool _showSpecEndpoints = true;
+  String _filterText = '';
+  String? _tokenPreview;
+  Duration? _lastDuration;
+
+  // Dynamic endpoints
+  List<EndpointItem> _endpoints = List.of(_knownEndpoints);
+  List<SavedRequest> _favorites = [];
+
+  // Quick login form fields
+  final _loginUserCtrl = TextEditingController(text: 'b6610505511');
+  final _loginPassCtrl = TextEditingController(text: 'mySecretPassword');
+  final _loginFirstCtrl = TextEditingController(text: 'Alice');
+  final _loginLastCtrl = TextEditingController(text: 'Smith');
+  final _loginPhoneCtrl = TextEditingController(text: '+66912345678');
+  final _loginGenderCtrl = TextEditingController(text: 'Female');
+  final _tokenPasteCtrl = TextEditingController();
 
   @override
   void dispose() {
     _pathCtrl.dispose();
     _bodyCtrl.dispose();
+    _loginUserCtrl.dispose();
+    _loginPassCtrl.dispose();
+    _loginFirstCtrl.dispose();
+    _loginLastCtrl.dispose();
+    _loginPhoneCtrl.dispose();
+    _loginGenderCtrl.dispose();
+    _tokenPasteCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTokenPreview();
+    _loadFavorites();
   }
 
   Future<void> _send() async {
@@ -44,10 +83,11 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
       }
     }
 
+    final startedAt = DateTime.now();
     setState(() {
       _sending = true;
       _output = 'Sending $_method $path...';
-    });
+      });
 
     try {
       final response = switch (_method) {
@@ -59,13 +99,17 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
       };
 
       final bodyPreview = response.body.isNotEmpty ? response.body : '<empty>';
+      _lastDuration = DateTime.now().difference(startedAt);
       setState(() {
-        _output =
-            'Status: ${response.statusCode} ${response.reasonPhrase}\n${_prettyPreview(bodyPreview)}';
+        _output = 'URL: ${ApiConfig.baseUrl}$path\n'
+            'Status: ${response.statusCode} ${response.reasonPhrase}  '
+            '(${_lastDuration!.inMilliseconds} ms)\n'
+            '${_prettyPreview(bodyPreview)}';
       });
     } catch (e) {
+      _lastDuration = DateTime.now().difference(startedAt);
       setState(() {
-        _output = 'Error: $e';
+        _output = 'Error: $e (${_lastDuration!.inMilliseconds} ms)';
       });
     } finally {
       setState(() => _sending = false);
@@ -90,13 +134,39 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
 
   @override
   Widget build(BuildContext context) {
-    final endpoints = _knownEndpoints;
+    final endpoints = _visibleEndpoints;
     return Scaffold(
       appBar: AppBar(
         title: const Text('API Console'),
+        actions: [
+          IconButton(
+            tooltip: 'Sync from Swagger',
+            onPressed: _syncingSpec ? null : _loadSwaggerSpec,
+            icon: _syncingSpec
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+          ),
+          IconButton(
+            tooltip: 'Copy cURL',
+            onPressed: _copyCurl,
+            icon: const Icon(Icons.copy_all),
+          ),
+          IconButton(
+            tooltip: 'Copy URL',
+            onPressed: _copyUrl,
+            icon: const Icon(Icons.link),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [
+          _buildEnvBanner(),
+          _buildAuthBar(),
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Row(
@@ -137,6 +207,12 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
                   icon: const Icon(Icons.send),
                   label: const Text('Send'),
                 ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Save as favorite',
+                  onPressed: _saveFavorite,
+                  icon: const Icon(Icons.star_border),
+                ),
               ],
             ),
           ),
@@ -152,33 +228,11 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
             ),
           ),
           const SizedBox(height: 8),
+          _buildListsHeader(),
           Expanded(
             child: Row(
               children: [
-                Flexible(
-                  flex: 2,
-                  child: ListView.builder(
-                    itemCount: endpoints.length,
-                    itemBuilder: (context, index) {
-                      final e = endpoints[index];
-                      return ListTile(
-                        dense: true,
-                        title: Text('${e.method} ${e.path}'),
-                        subtitle: Text(e.group),
-                        trailing:
-                            e.includeAuth ? const Icon(Icons.lock) : null,
-                        onTap: () {
-                          setState(() {
-                            _method = e.method;
-                            _includeAuth = e.includeAuth;
-                            _pathCtrl.text = e.path;
-                            _bodyCtrl.text = e.exampleBody ?? '';
-                          });
-                        },
-                      );
-                    },
-                  ),
-                ),
+                Flexible(flex: 2, child: _buildEndpointList(endpoints)),
                 const VerticalDivider(width: 1),
                 Flexible(
                   flex: 3,
@@ -197,6 +251,477 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
           )
         ],
       ),
+    );
+  }
+
+  Widget _buildEnvBanner() {
+    return Container(
+      width: double.infinity,
+      color: Colors.green.withOpacity(0.06),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud, color: Colors.green),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Base URL: ${ApiConfig.baseUrl}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (_lastDuration != null)
+            Text('${_lastDuration!.inMilliseconds} ms',
+                style: const TextStyle(color: Colors.black54)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuthBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lock, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _tokenPreview == null
+                      ? 'Not authenticated'
+                      : 'Authenticated (token: ${_maskToken(_tokenPreview!)})',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _refreshTokenPreview,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Check'),
+              ),
+              TextButton.icon(
+                onPressed: _clearToken,
+                icon: const Icon(Icons.logout, size: 18),
+                label: const Text('Logout'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _tokenPasteCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Paste JWT token (without Bearer)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _applyManualToken,
+                child: const Text('Use Token'),
+              )
+            ],
+          ),
+          const SizedBox(height: 8),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('Quick Login'),
+            children: [
+              Wrap(
+                runSpacing: 8,
+                spacing: 8,
+                children: [
+                  SizedBox(
+                    width: 180,
+                    child: TextField(
+                      controller: _loginUserCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'username',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 180,
+                    child: TextField(
+                      controller: _loginPassCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'password',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 180,
+                    child: TextField(
+                      controller: _loginFirstCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'first_name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 180,
+                    child: TextField(
+                      controller: _loginLastCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'last_name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 200,
+                    child: TextField(
+                      controller: _loginPhoneCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'phone_number',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 160,
+                    child: TextField(
+                      controller: _loginGenderCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'gender',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _login,
+                    icon: const Icon(Icons.login),
+                    label: const Text('Login'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListsHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      child: Row(
+        children: [
+          const Text('Endpoints'),
+          const SizedBox(width: 10),
+          ChoiceChip(
+            label: const Text('Favorites'),
+            selected: _showFavorites,
+            onSelected: (v) => setState(() => _showFavorites = v),
+          ),
+          const SizedBox(width: 6),
+          ChoiceChip(
+            label: const Text('Swagger'),
+            selected: _showSpecEndpoints,
+            onSelected: (v) => setState(() => _showSpecEndpoints = v),
+          ),
+          const Spacer(),
+          SizedBox(
+            width: 240,
+            child: TextField(
+              decoration: const InputDecoration(
+                isDense: true,
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Filter (e.g. users get)',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) => setState(() => _filterText = v.toLowerCase()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEndpointList(List<EndpointItem> endpoints) {
+    final items = _filterEndpoints(endpoints);
+    return ListView.builder(
+      itemCount: items.length + (_showFavorites ? _favorites.length + 1 : 0),
+      itemBuilder: (context, index) {
+        if (_showFavorites) {
+          if (index == 0) {
+            return const ListTile(
+              dense: true,
+              title: Text('Favorites'),
+            );
+          }
+          final favIndex = index - 1;
+          if (favIndex < _favorites.length) {
+            final f = _favorites[favIndex];
+            return ListTile(
+              dense: true,
+              leading: const Icon(Icons.star, color: Colors.amber),
+              title: Text('${f.method} ${f.path}'),
+              subtitle: Text('Saved'),
+              onTap: () => _loadFavorite(f),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => _deleteFavorite(f),
+              ),
+            );
+          }
+        }
+        final i = index - (_showFavorites ? _favorites.length + 1 : 0);
+        final e = items[i];
+        return ListTile(
+          dense: true,
+          title: Text('${e.method} ${e.path}'),
+          subtitle: Text(e.group),
+          trailing: e.includeAuth ? const Icon(Icons.lock) : null,
+          onTap: () {
+            setState(() {
+              _method = e.method;
+              _includeAuth = e.includeAuth;
+              _pathCtrl.text = e.path;
+              _bodyCtrl.text = e.exampleBody ?? '';
+            });
+          },
+        );
+      },
+    );
+  }
+
+  List<EndpointItem> get _visibleEndpoints => _showSpecEndpoints ? _endpoints : _knownEndpoints;
+
+  List<EndpointItem> _filterEndpoints(List<EndpointItem> list) {
+    final q = _filterText.trim();
+    if (q.isEmpty) return list;
+    return list.where((e) {
+      final s = '${e.group} ${e.method} ${e.path}'.toLowerCase();
+      return s.contains(q);
+    }).toList();
+  }
+
+  Future<void> _login() async {
+    try {
+      final req = LoginRequest(
+        username: _loginUserCtrl.text.trim(),
+        password: _loginPassCtrl.text.trim(),
+        firstName: _loginFirstCtrl.text.trim(),
+        lastName: _loginLastCtrl.text.trim(),
+        phoneNumber: _loginPhoneCtrl.text.trim(),
+        gender: _loginGenderCtrl.text.trim(),
+      );
+      final res = await API.auth.login(req);
+      setState(() {
+        _includeAuth = true;
+        _tokenPreview = res.token;
+        _output = 'Login OK: user #${res.user.id}\nToken saved';
+      });
+    } catch (e) {
+      setState(() => _output = 'Login failed: $e');
+    }
+  }
+
+  Future<void> _refreshTokenPreview() async {
+    final token = await _api.getToken();
+    setState(() => _tokenPreview = token);
+  }
+
+  Future<void> _clearToken() async {
+    await _api.removeToken();
+    await _refreshTokenPreview();
+  }
+
+  Future<void> _applyManualToken() async {
+    final t = _tokenPasteCtrl.text.trim();
+    if (t.isEmpty) return;
+    await _api.saveToken(t.replaceAll('Bearer ', ''));
+    await _refreshTokenPreview();
+    setState(() => _includeAuth = true);
+  }
+
+  Future<void> _copyUrl() async {
+    final url = '${ApiConfig.baseUrl}${_normalizePath(_pathCtrl.text)}';
+    await Clipboard.setData(ClipboardData(text: url));
+    _snack('URL copied');
+  }
+
+  Future<void> _copyCurl() async {
+    final path = _normalizePath(_pathCtrl.text);
+    final url = '${ApiConfig.baseUrl}$path';
+    final accept = '-H "accept: application/json"';
+    final content = '-H "content-type: application/json"';
+    final token = await _api.getToken();
+    final auth = (_includeAuth && token != null)
+        ? '-H "Authorization: Bearer $token"'
+        : '';
+    final data = (_method == 'POST' || _method == 'PUT') && _bodyCtrl.text.trim().isNotEmpty
+        ? "-d '${_bodyCtrl.text.replaceAll("'", "'\\''")}'"
+        : '';
+    final curl = 'curl -X \"$_method\" \\\n+  \"$url\" \\\n+  $accept \\\n+  $content \\\n+  $auth \\\n+  $data';
+    await Clipboard.setData(ClipboardData(text: curl));
+    _snack('cURL copied');
+  }
+
+  Future<void> _loadSwaggerSpec() async {
+    setState(() => _syncingSpec = true);
+    try {
+      // Direct HTTP call (no auth), use BaseApiService to keep headers consistent
+      final res = await _api.get('/swagger/doc.json', includeAuth: false);
+      final data = json.decode(res.body) as Map<String, dynamic>;
+      final items = _parseSwagger(data);
+      setState(() {
+        _endpoints = items;
+        _syncingSpec = false;
+      });
+      _snack('Swagger synced: ${items.length} endpoints');
+    } catch (e) {
+      setState(() => _syncingSpec = false);
+      _snack('Sync failed: $e');
+    }
+  }
+
+  List<EndpointItem> _parseSwagger(Map<String, dynamic> spec) {
+    final paths = (spec['paths'] as Map<String, dynamic>? ?? {});
+    final out = <EndpointItem>[];
+    for (final entry in paths.entries) {
+      final path = entry.key;
+      final methods = entry.value as Map<String, dynamic>;
+      for (final m in methods.entries) {
+        final method = m.key.toUpperCase();
+        if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].contains(method)) continue;
+        final meta = m.value as Map<String, dynamic>;
+        final tags = (meta['tags'] as List?)?.cast() ?? [];
+        final group = tags.isNotEmpty ? tags.first.toString() : 'General';
+        final security = (meta['security'] as List?) ?? (spec['security'] as List?);
+        final includeAuth = security != null && security.isNotEmpty;
+        String? exampleBody;
+        final params = (meta['parameters'] as List?)?.cast<Map<String, dynamic>>();
+        final bodyParam = params?.firstWhere(
+          (p) => p['in'] == 'body',
+          orElse: () => {},
+        );
+        if (bodyParam != null && bodyParam.isNotEmpty) {
+          // Try schema + example (best effort)
+          exampleBody = _buildExampleFromSchema(bodyParam['schema'] as Map<String, dynamic>?, spec);
+        }
+        out.add(EndpointItem(group, method, path, exampleBody: exampleBody, includeAuth: includeAuth));
+      }
+    }
+    // Deterministic order: group, path, method
+    out.sort((a, b) {
+      final g = a.group.compareTo(b.group);
+      if (g != 0) return g;
+      final p = a.path.compareTo(b.path);
+      if (p != 0) return p;
+      return a.method.compareTo(b.method);
+    });
+    return out;
+  }
+
+  String? _buildExampleFromSchema(Map<String, dynamic>? schema, Map<String, dynamic> spec) {
+    if (schema == null) return null;
+    try {
+      final definitions = (spec['definitions'] as Map<String, dynamic>? ?? {});
+      Map<String, dynamic> example = {};
+
+      Map<String, dynamic>? resolveRef(String ref) {
+        final key = ref.replaceAll('#/definitions/', '');
+        return definitions[key] as Map<String, dynamic>?;
+      }
+
+      Map<String, dynamic> buildFromDef(Map<String, dynamic> def) {
+        final props = (def['properties'] as Map<String, dynamic>? ?? {});
+        final obj = <String, dynamic>{};
+        props.forEach((k, v) {
+          final prop = v as Map<String, dynamic>;
+          if (prop.containsKey('example')) {
+            obj[k] = prop['example'];
+          } else {
+            final type = prop['type'];
+            if (type == 'string') obj[k] = '';
+            else if (type == 'integer') obj[k] = 0;
+            else if (type == 'number') obj[k] = 0;
+            else if (type == 'boolean') obj[k] = false;
+            else if (type == 'array') obj[k] = [];
+            else if (type == 'object') obj[k] = {};
+          }
+        });
+        return obj;
+      }
+
+      if (schema['\$ref'] != null) {
+        final def = resolveRef(schema['\$ref']);
+        if (def != null) example = buildFromDef(def);
+      } else if (schema['type'] == 'object') {
+        example = buildFromDef(schema);
+      }
+
+      return example.isEmpty ? null : json.encode(example);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveFavorite() async {
+    final s = SavedRequest(
+      method: _method,
+      path: _normalizePath(_pathCtrl.text),
+      body: _bodyCtrl.text.trim().isEmpty ? null : _bodyCtrl.text,
+      includeAuth: _includeAuth,
+    );
+    setState(() => _favorites.add(s));
+    await _persistFavorites();
+    _snack('Saved favorite');
+  }
+
+  void _loadFavorite(SavedRequest s) {
+    setState(() {
+      _method = s.method;
+      _includeAuth = s.includeAuth;
+      _pathCtrl.text = s.path;
+      _bodyCtrl.text = s.body ?? '';
+    });
+  }
+
+  void _deleteFavorite(SavedRequest s) async {
+    setState(() => _favorites.remove(s));
+    await _persistFavorites();
+  }
+
+  Future<void> _persistFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = _favorites.map((e) => e.toJson()).toList();
+    await prefs.setString('api_console_favorites', json.encode(data));
+  }
+
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('api_console_favorites');
+    if (raw == null) return;
+    try {
+      final list = (json.decode(raw) as List).cast<Map<String, dynamic>>();
+      setState(() {
+        _favorites = list.map(SavedRequest.fromJson).toList();
+      });
+    } catch (_) {}
+  }
+
+  String _maskToken(String token) {
+    if (token.length <= 12) return token;
+    final head = token.substring(0, 6);
+    final tail = token.substring(max(0, token.length - 6));
+    return '$head…$tail';
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 1)),
     );
   }
 }
@@ -466,3 +991,30 @@ const List<EndpointItem> _knownEndpoints = [
   EndpointItem('Payments', 'POST', '/webhooks/omise', includeAuth: false, exampleBody: '{"object":"event","data":{}}'),
 ];
 
+class SavedRequest {
+  final String method;
+  final String path;
+  final String? body;
+  final bool includeAuth;
+
+  SavedRequest({
+    required this.method,
+    required this.path,
+    required this.includeAuth,
+    this.body,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'method': method,
+        'path': path,
+        'body': body,
+        'includeAuth': includeAuth,
+      };
+
+  static SavedRequest fromJson(Map<String, dynamic> json) => SavedRequest(
+        method: json['method'] as String,
+        path: json['path'] as String,
+        body: json['body'] as String?,
+        includeAuth: (json['includeAuth'] as bool?) ?? true,
+      );
+}

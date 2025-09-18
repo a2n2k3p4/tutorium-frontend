@@ -157,6 +157,7 @@ class BaseApiService {
       if (response.body.isNotEmpty) {
         try {
           final decoded = json.decode(response.body);
+          if (decoded == null) return [];
           if (decoded is List) return decoded;
           return [decoded];
         } on FormatException {
