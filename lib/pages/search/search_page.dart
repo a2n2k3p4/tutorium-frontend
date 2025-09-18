@@ -376,7 +376,7 @@ class _SearchPageState extends State<SearchPage> {
                     ? Column(
                         children: results.map((item) => Padding(
                           padding: const EdgeInsets.all(8.0),
-                          child: ScheduleCard(
+                          child: ScheduleCard_search(
                             className: item['className'] ?? 'Unnamed Class',
                             enrolledLearner: item['enrolledLearner'] ?? 0,
                             teacherName: item['teacherName'] ?? 'Unknown Teacher',
@@ -411,7 +411,7 @@ class _SearchPageState extends State<SearchPage> {
                             final item = scheduleData[index];
                             return Padding(
                               padding: const EdgeInsets.only(right: 12),
-                              child: ScheduleCard(
+                              child: ScheduleCard_search(
                                 className: item['className'],
                                 enrolledLearner: item['enrolledLearner'],
                                 teacherName: item['teacherName'],
@@ -440,7 +440,7 @@ class _SearchPageState extends State<SearchPage> {
                             final item = scheduleData[index];
                             return Padding(
                               padding: const EdgeInsets.only(right: 12),
-                              child: ScheduleCard(
+                              child: ScheduleCard_search(
                                 className: item['className'],
                                 enrolledLearner: item['enrolledLearner'],
                                 teacherName: item['teacherName'],
