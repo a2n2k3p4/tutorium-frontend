@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class ScheduleCard extends StatelessWidget {
+class ScheduleCard_search extends StatelessWidget {
   final String className;
   final int enrolledLearner;
   final String teacherName;
@@ -9,7 +9,7 @@ class ScheduleCard extends StatelessWidget {
   final TimeOfDay endTime;
   final String imagePath;
 
-  const ScheduleCard({
+  const ScheduleCard_search({
     Key? key,
     required this.className,
     required this.enrolledLearner,
@@ -42,11 +42,13 @@ class ScheduleCard extends StatelessWidget {
                 topLeft: Radius.circular(15),
                 topRight: Radius.circular(15),
               ),
-              child: Image.asset(
-                imagePath,
+              child: SizedBox(
                 width: double.infinity,
                 height: 120,
-                fit: BoxFit.cover,
+                child: Image.asset(
+                  imagePath,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             Padding(
