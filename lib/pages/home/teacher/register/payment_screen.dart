@@ -1,12 +1,13 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 class PaymentScreen extends StatefulWidget {
   final int userId; // Add userId parameter
-  
+
   const PaymentScreen({super.key, required this.userId});
 
   @override
@@ -20,16 +21,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   bool _isLoading = false;
   String _message = 'Ready to process payments';
-  String? _qrUrl;        // for PromptPay QR
+  String? _qrUrl; // for PromptPay QR
   String? _authorizeUri; // for internet banking redirect
-  String? _chargeId;     // for display/potential polling/debug
+  String? _chargeId; // for display/potential polling/debug
 
   @override
   void initState() {
     super.initState();
-    backendUrl = dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:8080';
-    publicKey = dotenv.env['OMISE_PUBLIC_KEY'] ?? '';
-    returnUri = dotenv.env['RETURN_URI'] ?? 'https://example.com/complete';
+    backendUrl = dotenv.env['API_URL']!;
+    publicKey = dotenv.env['OMISE_PUBLIC_KEY']!;
+    returnUri = dotenv.env['RETURN_URI']!;
   }
 
   // --- helpers ---
@@ -54,7 +55,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     try {
       // Add user_id to all requests
       payload['user_id'] = widget.userId;
-      
+
       final res = await http.post(
         Uri.parse('$backendUrl/payments/charge'), // Updated endpoint
         headers: {'Content-Type': 'application/json'},
@@ -72,27 +73,33 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _chargeId = body['charge_id'] as String?;
         final status = (body['status'] as String?) ?? 'unknown';
         final authorized = body['authorized'] == true;
-        
-        final summary = StringBuffer('Charge ${_chargeId ?? ''} → status: $status');
+
+        final summary = StringBuffer(
+          'Charge ${_chargeId ?? ''} → status: $status',
+        );
         if (authorized) summary.write(' (authorized)');
         await _setStatus(summary.toString());
-        
       } else if (body['type'] == 'promptpay') {
         _chargeId = body['charge_id'] as String?;
         final status = (body['status'] as String?) ?? 'unknown';
         _qrUrl = body['qr_image'] as String?;
-        
-        final summary = StringBuffer('Charge ${_chargeId ?? ''} → status: $status');
+
+        final summary = StringBuffer(
+          'Charge ${_chargeId ?? ''} → status: $status',
+        );
         if (_qrUrl != null) summary.write('\nShow QR and ask user to pay.');
         await _setStatus(summary.toString());
-        
-      } else if (body['type'] == 'truemoney' || body['type'] == 'internet_banking') {
+      } else if (body['type'] == 'truemoney' ||
+          body['type'] == 'internet_banking') {
         _chargeId = body['charge_id'] as String?;
         final status = (body['status'] as String?) ?? 'unknown';
         _authorizeUri = body['authorize_uri'] as String?;
-        
-        final summary = StringBuffer('Charge ${_chargeId ?? ''} → status: $status');
-        if (_authorizeUri != null) summary.write('\nNeeds authorization in browser.');
+
+        final summary = StringBuffer(
+          'Charge ${_chargeId ?? ''} → status: $status',
+        );
+        if (_authorizeUri != null)
+          summary.write('\nNeeds authorization in browser.');
         await _setStatus(summary.toString());
       } else {
         // Fallback to original Omise response parsing
@@ -115,9 +122,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
           _qrUrl = qr;
         });
 
-        final summary = StringBuffer('Charge ${_chargeId ?? ''} → status: $status');
+        final summary = StringBuffer(
+          'Charge ${_chargeId ?? ''} → status: $status',
+        );
         if (paid) summary.write(' (paid)');
-        if (_authorizeUri != null) summary.write('\nNeeds authorization in browser.');
+        if (_authorizeUri != null)
+          summary.write('\nNeeds authorization in browser.');
         if (_qrUrl != null) summary.write('\nShow QR and ask user to pay.');
 
         await _setStatus(summary.toString());
@@ -185,7 +195,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
       // 2) Send token to server for charging with SECRET key
       await _processPayment({
-        'amount': 100000,       // THB 1,000.00 (subunits)
+        'amount': 100000, // THB 1,000.00 (subunits)
         'currency': 'THB',
         'paymentType': 'credit_card',
         'token': token,
@@ -210,7 +220,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       'amount': 100000,
       'currency': 'THB',
       'paymentType': 'internet_banking',
-      'bank': 'bbl',        // or 'bay', 'scb', etc.
+      'bank': 'bbl', // or 'bay', 'scb', etc.
       'return_uri': returnUri, // required for redirect flows
     });
   }
@@ -226,7 +236,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
 
     try {
-      final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final success = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!success) {
         await _setStatus('Failed to open browser for authorization');
       }
@@ -237,7 +250,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pkDisplay = publicKey.isEmpty ? '(missing OMISE_PUBLIC_KEY)' : publicKey;
+    final pkDisplay = publicKey.isEmpty
+        ? '(missing OMISE_PUBLIC_KEY)'
+        : publicKey;
 
     return Scaffold(
       appBar: AppBar(
@@ -251,35 +266,59 @@ class _PaymentScreenState extends State<PaymentScreen> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Public Key', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  SelectableText(pkDisplay, style: const TextStyle(fontSize: 12)),
-                  const SizedBox(height: 8),
-                  Text('Backend: $backendUrl'),
-                  Text('User ID: ${widget.userId}'),
-                ]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Public Key',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      pkDisplay,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Backend: $backendUrl'),
+                    Text('User ID: ${widget.userId}'),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
-            const Text('Select Payment Method',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            const Text(
+              'Select Payment Method',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _isLoading ? null : _payWithCard,
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.blue, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Credit Card (Tokenized)'),
             ),
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: _isLoading ? null : _payWithPromptPay,
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.green, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('PromptPay'),
             ),
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: _isLoading ? null : _payWithInternetBanking,
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.orange, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Internet Banking'),
             ),
             const SizedBox(height: 24),
@@ -288,14 +327,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Column(children: [
-                    const Text('Authorization needed',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 8),
-                    Text(_authorizeUri!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
-                    const SizedBox(height: 12),
-                    FilledButton(onPressed: _openAuthorize, child: const Text('Open bank authorization')),
-                  ]),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Authorization needed',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _authorizeUri!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: _openAuthorize,
+                        child: const Text('Open bank authorization'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -305,13 +358,24 @@ class _PaymentScreenState extends State<PaymentScreen> {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Column(children: [
-                    const Text('Scan to pay (PromptPay)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 12),
-                    Image.network(_qrUrl!, height: 220, fit: BoxFit.contain),
-                    const SizedBox(height: 8),
-                    Text('Charge: ${_chargeId ?? '-'}', style: const TextStyle(fontSize: 12)),
-                  ]),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Scan to pay (PromptPay)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Image.network(_qrUrl!, height: 220, fit: BoxFit.contain),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Charge: ${_chargeId ?? '-'}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -320,11 +384,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(children: [
-                  const Text('Payment Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  const SizedBox(height: 12),
-                  _isLoading ? const CircularProgressIndicator() : Text(_message, textAlign: TextAlign.center),
-                ]),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Payment Status',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _isLoading
+                        ? const CircularProgressIndicator()
+                        : Text(_message, textAlign: TextAlign.center),
+                  ],
+                ),
               ),
             ),
           ],
