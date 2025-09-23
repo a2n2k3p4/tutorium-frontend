@@ -4,10 +4,15 @@ on:
   push:
     branches:
       - "main"
+    #    using standard https://semver.org/ kub
+    tags:
+      - 'v*.*.*'
   pull_request:
     branches:
       - "main"
-
+    #    using standard https://semver.org/ kub
+    tags:
+      - 'v*.*.*'
 
 jobs:
   build-android:
@@ -16,6 +21,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -33,8 +40,27 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      #        from this https://github.com/softprops/action-gh-release
+      - name: Bump version and push tag
+        id: tag_version
+        uses: anothrNick/github-tag-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BUMP: patch
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: now release for version ${{ steps.tag_version.outputs.new_tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          files: build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
