@@ -108,7 +108,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
       final password = _passwordController.text;
 
       try {
-        final loginResponse = await fetchUser(username, password);
+        // final loginResponse = await fetchUser(username, password);
+        final _ = await fetchUser(username, password);
 
         Navigator.pushAndRemoveUntil(
           context,
@@ -118,8 +119,6 @@ class _UserLoginPageState extends State<UserLoginPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Login successfully')));
-
-        print("Token: ${loginResponse.token}"); // save this securely later
       } catch (e) {
         ScaffoldMessenger.of(
           context,
