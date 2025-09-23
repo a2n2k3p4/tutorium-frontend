@@ -59,7 +59,8 @@ Future<LoginResponse> fetchUser(String username, String password) async {
   try {
     final apiKey = dotenv.env["API_URL"];
     final port = dotenv.env["PORT"];
-    final url = "${apiKey!}:${port!}";
+    final route = "login";
+    final url = "${apiKey!}:${port!}/${route}";
 
     final loginData = {'username': username, 'password': password};
 
