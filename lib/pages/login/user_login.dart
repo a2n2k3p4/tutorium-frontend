@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:tutorium_frontend/pages/main_nav_page.dart';
 
@@ -55,10 +57,14 @@ class LoginResponse {
 // API function
 Future<LoginResponse> fetchUser(String username, String password) async {
   try {
+    final apiKey = dotenv.env["API_URL"];
+    final port = dotenv.env["PORT"];
+    final url = "${apiKey!}:${port!}";
+
     final loginData = {'username': username, 'password': password};
 
     final response = await http.post(
-      Uri.parse('http://65.108.156.197:8000/login'),
+      Uri.parse(url),
       headers: {
         'User-Agent': 'flutter_app',
         'Accept': 'application/json',
@@ -108,17 +114,15 @@ class _UserLoginPageState extends State<UserLoginPage> {
           MaterialPageRoute(builder: (context) => MainNavPage()),
           (route) => false,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login successfully'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Login successfully')));
 
         print("Token: ${loginResponse.token}"); // save this securely later
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login failed')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Login failed')));
       }
     }
   }
@@ -128,10 +132,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: Colors.lightGreen,
-      appBar: AppBar(
-        title: const Text(""),
-        backgroundColor: Colors.lightGreen,
-      ),
+      appBar: AppBar(title: const Text(""), backgroundColor: Colors.lightGreen),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Form(

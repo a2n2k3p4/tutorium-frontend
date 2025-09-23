@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-//import 'package:tutorium_frontend/pages/login/login_ku.dart';
-import 'package:tutorium_frontend/pages/main_nav_page.dart';
+import 'package:tutorium_frontend/pages/login/login_ku.dart';
 // import 'package:tutorium_frontend/pages/widgets/noti_service.dart';
 
-void main(){
+void main() {
   // WidgetsFlutterBinding.ensureInitialized();
   // NotiService().initNotification();
   // await dotenv.load(fileName: ".env");
@@ -18,8 +17,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'KU Tutorium',
       theme: ThemeData(primarySwatch: Colors.green, useMaterial3: true),
-      home: MainNavPage(),
-      //home: LoginKuPage(),
+      // home: MainNavPage(),
+      home: LoginKuPage(),
     );
   }
 }

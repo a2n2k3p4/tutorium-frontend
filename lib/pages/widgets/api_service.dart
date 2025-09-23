@@ -1,8 +1,10 @@
 import 'dart:convert';
+
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  final String baseUrl = "http://65.108.156.197:8000";
+  final baseUrl = dotenv.env["API_URL"];
 
   Future<List<dynamic>> getAllClasses() async {
     final url = Uri.parse("$baseUrl/classes");
@@ -16,13 +18,11 @@ class ApiService {
   }
 
   Future<List<dynamic>> searchClass(String query) async {
-    final queryParams = {
-      "class_description": query,
-      "class_name": query,
-    };
+    final queryParams = {"class_description": query, "class_name": query};
 
-    final url = Uri.parse("$baseUrl/classes/search")
-        .replace(queryParameters: queryParams);
+    final url = Uri.parse(
+      "$baseUrl/classes/search",
+    ).replace(queryParameters: queryParams);
 
     print("Search request: $url");
 
@@ -51,8 +51,9 @@ class ApiService {
     if (maxRating != null) queryParams["max_rating"] = maxRating.toString();
     if (search != null && search.isNotEmpty) queryParams["search"] = search;
 
-    var uri =
-        Uri.parse("$baseUrl/classes").replace(queryParameters: queryParams);
+    var uri = Uri.parse(
+      "$baseUrl/classes",
+    ).replace(queryParameters: queryParams);
 
     // Append multiple categories
     if (categories != null && categories.isNotEmpty) {
