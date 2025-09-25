@@ -69,13 +69,11 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
-
-
   Future<void> _search(String query) async {
     setState(() {
       currentQuery = query;
     });
-
+    
     if (!isFilterActive) {
       setState(() {
         _filteredClasses = api.searchLocal(_allClasses, query);
@@ -427,7 +425,6 @@ class _SearchPageState extends State<SearchPage> {
                           );
                         },
                       )
-
                     : const Padding(
                         padding: EdgeInsets.all(16.0),
                         child: Text("No results found"),
