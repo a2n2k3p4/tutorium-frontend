@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dev/api_console_page.dart';
 import 'home/learner_home.dart';
-import 'home/teacher_home.dart';
+import 'home/teacher/teacher_home.dart';
 import 'search/search_page.dart';
 import 'notification/notification_page.dart';
 import 'profile/profile_page.dart';

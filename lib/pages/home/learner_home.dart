@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import '../widgets/schedule_card.dart';
 
-class LearnerHomePage extends StatelessWidget {
+class LearnerHomePage extends StatefulWidget {
   final VoidCallback onSwitch;
   const LearnerHomePage({super.key, required this.onSwitch});
 
+  @override
+  State<LearnerHomePage> createState() => _LearnerHomePageState();
+}
+
+class _LearnerHomePageState extends State<LearnerHomePage> {
   @override
   Widget build(BuildContext context) {
     final List<Map<String, dynamic>> scheduleData = [
@@ -25,6 +30,15 @@ class LearnerHomePage extends StatelessWidget {
         'startTime': '13:00',
         'endTime': '16:00',
         'imagePath': 'assets/images/piano.jpg',
+      },
+      {
+        'className': 'violin class by Jane',
+        'enrolledLearner': 10,
+        'teacherName': 'Jane Frost',
+        'date': '2025-07-26',
+        'startTime': '13:00',
+        'endTime': '16:00',
+        'imagePath': 'assets/images/violin.jpg',
       },
     ];
 
@@ -67,7 +81,7 @@ class LearnerHomePage extends StatelessWidget {
                       color: Colors.amber,
                       size: 50,
                     ),
-                    onPressed: onSwitch,
+                    onPressed: widget.onSwitch,
                   ),
                 ],
               ),

@@ -17,7 +17,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'KU Tutorium',
       theme: ThemeData(primarySwatch: Colors.green, useMaterial3: true),
-      home: const MainNavPage(),
+      home: MainNavPage(),
+      //home: LoginKuPage(),
     );
   }
 }
