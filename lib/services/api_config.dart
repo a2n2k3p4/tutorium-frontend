@@ -5,7 +5,7 @@ class ApiConfig {
   static String get baseUrl {
     final host = dotenv.env['API_URL']!;
     final port = dotenv.env['PORT']!;
-    return 'http://$host:$port/api';
+    return '$host:$port/api';
   }
 
   // Endpoints
