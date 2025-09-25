@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:tutorium_frontend/pages/widgets/schedule_card_recommend.dart';
-import '../widgets/api_service.dart';
+import 'package:tutorium_frontend/pages/widgets/schedule_card_search.dart';
+import 'package:tutorium_frontend/pages/widgets/search_service.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -10,8 +10,9 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
-  final ApiService api = ApiService();
-  List<dynamic> results = [];
+  final SearchService api = SearchService();
+  List<dynamic> _allClasses = [];
+  List<dynamic> _filteredClasses = [];
   bool isLoading = false;
   String currentQuery = "";
   
@@ -29,6 +30,7 @@ class _SearchPageState extends State<SearchPage> {
       'startTime': '13:00',
       'endTime': '16:00',
       'imagePath': 'assets/images/guitar.jpg',
+      'rating': 4.5,
     },
     {
       'className': 'Piano class by Jane',
@@ -38,6 +40,7 @@ class _SearchPageState extends State<SearchPage> {
       'startTime': '13:00',
       'endTime': '16:00',
       'imagePath': 'assets/images/piano.jpg',
+      'rating': 4.0,
     },
     {
       'className': 'Piano class by Jane',
@@ -47,22 +50,35 @@ class _SearchPageState extends State<SearchPage> {
       'startTime': '13:00',
       'endTime': '16:00',
       'imagePath': 'assets/images/piano.jpg',
+      'rating': 4.9,
     },
   ];
+
 
   @override
   void initState() {
     super.initState();
+    _loadClasses();
   }
+
+  Future<void> _loadClasses() async {
+    final data = await api.getAllClasses();
+    setState(() {
+      _allClasses = data;
+      _filteredClasses = api.searchLocal(data, "");
+    });
+  }
+
+
 
   Future<void> _search(String query) async {
     setState(() {
       currentQuery = query;
     });
-    
-    if (query.isEmpty && !isFilterActive) {
+
+    if (!isFilterActive) {
       setState(() {
-        results = [];
+        _filteredClasses = api.searchLocal(_allClasses, query);
       });
       return;
     }
@@ -73,18 +89,31 @@ class _SearchPageState extends State<SearchPage> {
         categories: selectedCategories.isNotEmpty ? selectedCategories : null,
         minRating: minRating,
         maxRating: maxRating,
-        search: query.isNotEmpty ? query : null,
       );
-      setState(() => results = data);
+
+      final searched = api.searchLocal(data, query);
+      setState(() => _filteredClasses = searched);
     } catch (e) {
-      if (query.isNotEmpty || isFilterActive) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e")),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
     } finally {
       setState(() => isLoading = false);
     }
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      currentQuery = query;
+    });
+
+    if (query.isEmpty && !isFilterActive) {
+      setState(() {
+        _filteredClasses = api.searchLocal(_allClasses, "");
+      });
+      return;
+    }
+    _search(query);
   }
 
   void _showFilterOptions() {
@@ -300,7 +329,7 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                       prefixIcon: Icon(Icons.search),
                     ),
-                    onChanged: _search,
+                    onChanged: _onSearchChanged,
                   ),
                 ),
                 SizedBox(width: 8),
@@ -372,21 +401,33 @@ class _SearchPageState extends State<SearchPage> {
                 if (isLoading)
                   const Center(child: CircularProgressIndicator())
                 else if (currentQuery.isNotEmpty || isFilterActive)
-                  results.isNotEmpty
-                    ? Column(
-                        children: results.map((item) => Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: ScheduleCard_search(
-                            className: item['className'] ?? 'Unnamed Class',
+                  _filteredClasses.isNotEmpty
+                    ? GridView.builder(
+                        shrinkWrap: true,
+                        physics: NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(8),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                          childAspectRatio: 0.8,
+                        ),
+                        itemCount: _filteredClasses.length,
+                        itemBuilder: (context, index) {
+                          final item = _filteredClasses[index];
+                          return ScheduleCard_search(
+                            className: item['class_name'] ?? item['className'] ?? 'Unnamed Class',
                             enrolledLearner: item['enrolledLearner'] ?? 0,
-                            teacherName: item['teacherName'] ?? 'Unknown Teacher',
-                            date: parseDate(item['date'] ?? '2025-01-01'),
+                            teacherName: item['teacher_name'] ?? item['teacherName'] ?? 'Unknown Teacher',
+                            date: DateTime.tryParse(item['date'] ?? '') ?? DateTime.now(),
                             startTime: parseTime(item['startTime'] ?? '00:00'),
                             endTime: parseTime(item['endTime'] ?? '00:00'),
-                            imagePath: item['imagePath'] ?? 'assets/images/placeholder.jpg',
-                          ),
-                        )).toList(),
+                            imagePath: item['imagePath'] ?? 'assets/images/default.jpg',
+                            rating: (item['rating'] is num) ? (item['rating'] as num).toDouble() : 4.5,
+                          );
+                        },
                       )
+
                     : const Padding(
                         padding: EdgeInsets.all(16.0),
                         child: Text("No results found"),
@@ -403,7 +444,7 @@ class _SearchPageState extends State<SearchPage> {
                         ),
                       ),
                       SizedBox(
-                        height: 260,
+                        height: 180,
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           itemCount: scheduleData.length,
@@ -419,6 +460,7 @@ class _SearchPageState extends State<SearchPage> {
                                 startTime: parseTime(item['startTime']),
                                 endTime: parseTime(item['endTime']),
                                 imagePath: item['imagePath'],
+                                rating: item['rating']
                               ),
                             );
                           },
@@ -432,7 +474,7 @@ class _SearchPageState extends State<SearchPage> {
                         ),
                       ),
                       SizedBox(
-                        height: 260,
+                        height: 180,
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           itemCount: scheduleData.length,
@@ -448,6 +490,7 @@ class _SearchPageState extends State<SearchPage> {
                                 startTime: parseTime(item['startTime']),
                                 endTime: parseTime(item['endTime']),
                                 imagePath: item['imagePath'],
+                                rating: item['rating']
                               ),
                             );
                           },
