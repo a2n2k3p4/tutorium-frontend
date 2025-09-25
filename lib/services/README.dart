@@ -138,7 +138,7 @@ Token จะถูกจัดการอัตโนมัติ:
 
 แก้ไข base URL ใน `lib/services/api_config.dart`:
 ```dart
-static const String baseUrl = 'http://65.108.156.197:8000';
+static const String baseUrl = 'http://xxx,xxx,xxx,xxx:port/api';
 ```
 
 ### 7. Models ที่สำคัญ

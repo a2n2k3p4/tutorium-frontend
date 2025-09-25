@@ -3,11 +3,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ApiConfig {
   // Build base URL from .env (fallback to defaults if missing)
   static String get baseUrl {
-    final host = dotenv.env['API_URL']?.trim();
-    final port = dotenv.env['PORT']?.trim();
-    final resolvedHost = (host == null || host.isEmpty) ? '65.108.156.197' : host;
-    final resolvedPort = (port == null || port.isEmpty) ? '8000' : port;
-    return 'http://$resolvedHost:$resolvedPort';
+    final host = dotenv.env['API_URL']!;
+    final port = dotenv.env['PORT']!;
+    return 'http://$host:$port/api';
   }
 
   // Endpoints
