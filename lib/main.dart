@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'pages/main_nav_page.dart';
 
-Future<void> main() async {
+//import 'package:tutorium_frontend/pages/login/login_ku.dart';
+import 'package:tutorium_frontend/pages/main_nav_page.dart';
+// import 'package:tutorium_frontend/pages/widgets/noti_service.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Load environment variables from .env
+  // NotiService().initNotification();
+
   await dotenv.load(fileName: ".env");
   runApp(const MyApp());
 }
