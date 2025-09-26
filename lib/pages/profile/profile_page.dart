@@ -61,7 +61,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final apiKey = dotenv.env["API_URL"];
       final port = dotenv.env["PORT"];
 
-      final apiUrl = "${apikey}:${port}/users/6"; // Example endpoint
+      final apiUrl = "${apiKey}:${port}/users/6"; // Example endpoint
       final response = await http.get(Uri.parse(apiUrl));
 
       if (response.statusCode == 200) {
