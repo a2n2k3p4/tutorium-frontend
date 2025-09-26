@@ -3,8 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tutorium_frontend/main.dart';
 import 'package:tutorium_frontend/pages/main_nav_page.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_card.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() {
+  setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    dotenv.loadFromString(envString: '''
+      API_URL=http://xxx.xxx.xxx.xxx
+      PORT=xxxxx
+    ''');
+  });
+
   testWidgets('App shows LearnerPage initially and can navigate', (
     WidgetTester tester,
   ) async {
