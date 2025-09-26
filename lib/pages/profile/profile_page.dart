@@ -58,7 +58,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> fetchUser() async {
     try {
       // make sure API_URL is defined in your .env file
-      final apiUrl = "${dotenv.env['BACKEND_URL']}/users/6"; // Example endpoint
+      final apiKey = dotenv.env["API_URL"];
+      final port = dotenv.env["PORT"];
+
+      final apiUrl = "${apikey}:${port}/users/6"; // Example endpoint
       final response = await http.get(Uri.parse(apiUrl));
 
       if (response.statusCode == 200) {
