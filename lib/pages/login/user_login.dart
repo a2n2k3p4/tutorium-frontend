@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:tutorium_frontend/pages/main_nav_page.dart';
 
@@ -56,9 +57,9 @@ class LoginResponse {
 Future<LoginResponse> fetchUser(String username, String password) async {
   try {
     final loginData = {'username': username, 'password': password};
-
+    final apiKey = dotenv.env["LOGIN_API"];
     final response = await http.post(
-      Uri.parse('http://65.108.156.197:8000/login'),
+      Uri.parse('$apiKey'),
       headers: {
         'User-Agent': 'flutter_app',
         'Accept': 'application/json',
