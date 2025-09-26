@@ -28,9 +28,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   void initState() {
     super.initState();
-    backendUrl = dotenv.env['API_URL']!;
-    publicKey = dotenv.env['OMISE_PUBLIC_KEY']!;
-    returnUri = dotenv.env['RETURN_URI']!;
+    backendUrl = '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}' ?? 'http://10.0.2.2:8080';
+    publicKey = dotenv.env['OMISE_PUBLIC_KEY'] ?? '';
+    returnUri = dotenv.env['RETURN_URI'] ?? 'https://example.com/complete';
   }
 
   // --- helpers ---
