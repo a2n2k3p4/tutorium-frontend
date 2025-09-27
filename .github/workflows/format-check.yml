@@ -1,0 +1,19 @@
+name: Check Dart Formatting
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
