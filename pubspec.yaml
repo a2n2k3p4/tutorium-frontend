@@ -34,7 +34,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.5.0
   shared_preferences: ^2.5.3
-  flutter_dotenv: ^5.1.0
+  # Needs v6 for loadFromString(...)
+  flutter_dotenv: ^6.0.0
+  # Needed by payment_screen.dart (launchUrl, LaunchMode)
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
