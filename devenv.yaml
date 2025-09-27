@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+
+# If you're using non-OSS software, you can set allowUnfree to true.
+# allowUnfree: true
+
+# If you're willing to use a package that's vulnerable
+# permittedInsecurePackages:
+#  - "openssl-1.1.1w"
+
+# If you have more than one devenv you can merge them
+#imports:
+# - ./backend
+
+nixpkgs:
+  permittedUnfreePackages:
+    - android-sdk-build-tools
+    - android-sdk-cmdline-tools
+    - android-sdk-emulator
+    - android-sdk-extras-google-gcm
+    - android-sdk-platform-tools
+    - android-sdk-platforms
+    - android-sdk-system-image-32-google_apis_playstore-arm64-v8a-system-image-32-google_apis_playstore-x86_64
+    - android-sdk-system-image-34-google_apis_playstore-arm64-v8a-system-image-34-google_apis_playstore-x86_64
+    - android-sdk-tools
+    - build-tools
+    - cmake
+    - cmdline-tools
+    - emulator
+    - extras-google-gcm
+    - platform-tools
+    - platforms
+    - system-image-32-google_apis_playstore-arm64-v8a
+    - system-image-32-google_apis_playstore-x86_64
+    - system-image-34-google_apis_playstore-arm64-v8a
+    - system-image-34-google_apis_playstore-x86_64
+    - tools
