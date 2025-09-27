@@ -52,7 +52,9 @@ class BaseApiService {
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     _logRequest('GET', url.toString(), headers: headers);
     try {
-      final res = await http.get(url, headers: headers).timeout(_defaultTimeout);
+      final res = await http
+          .get(url, headers: headers)
+          .timeout(_defaultTimeout);
       _logResponse('GET', url.toString(), res);
       return res;
     } on TimeoutException {
@@ -199,8 +201,9 @@ void _logRequest(
   Map<String, dynamic>? body,
 }) {
   // Hide Authorization for safety
-  final safeHeaders = (headers ?? {})
-      .map((k, v) => MapEntry(k, k.toLowerCase() == 'authorization' ? '***' : v));
+  final safeHeaders = (headers ?? {}).map(
+    (k, v) => MapEntry(k, k.toLowerCase() == 'authorization' ? '***' : v),
+  );
   final bodyPreview = body == null ? '' : json.encode(body);
   final truncatedBody = bodyPreview.length > 200
       ? '${bodyPreview.substring(0, 200)}...'
@@ -213,7 +216,11 @@ void _logRequest(
 
 void _logResponse(String method, String url, http.Response res) {
   final preview = res.body.isNotEmpty ? res.body : '';
-  final truncated = preview.length > 300 ? '${preview.substring(0, 300)}...' : preview;
+  final truncated = preview.length > 300
+      ? '${preview.substring(0, 300)}...'
+      : preview;
   // ignore: avoid_print
-  print('[HTTP] $method $url -> ${res.statusCode} ${res.reasonPhrase} body=$truncated');
+  print(
+    '[HTTP] $method $url -> ${res.statusCode} ${res.reasonPhrase} body=$truncated',
+  );
 }

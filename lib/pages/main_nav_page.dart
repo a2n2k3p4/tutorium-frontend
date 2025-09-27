@@ -65,9 +65,7 @@ class _MainNavPageState extends State<MainNavPage> {
           : FloatingActionButton.extended(
               onPressed: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ApiConsolePage(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const ApiConsolePage()),
                 );
               },
               icon: const Icon(Icons.terminal),

@@ -87,7 +87,7 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
     setState(() {
       _sending = true;
       _output = 'Sending $_method $path...';
-      });
+    });
 
     try {
       final response = switch (_method) {
@@ -101,7 +101,8 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
       final bodyPreview = response.body.isNotEmpty ? response.body : '<empty>';
       _lastDuration = DateTime.now().difference(startedAt);
       setState(() {
-        _output = 'URL: ${ApiConfig.baseUrl}$path\n'
+        _output =
+            'URL: ${ApiConfig.baseUrl}$path\n'
             'Status: ${response.statusCode} ${response.reasonPhrase}  '
             '(${_lastDuration!.inMilliseconds} ms)\n'
             '${_prettyPreview(bodyPreview)}';
@@ -248,7 +249,7 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -270,8 +271,10 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
             ),
           ),
           if (_lastDuration != null)
-            Text('${_lastDuration!.inMilliseconds} ms',
-                style: const TextStyle(color: Colors.black54)),
+            Text(
+              '${_lastDuration!.inMilliseconds} ms',
+              style: const TextStyle(color: Colors.black54),
+            ),
         ],
       ),
     );
@@ -323,7 +326,7 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
               ElevatedButton(
                 onPressed: _applyManualToken,
                 child: const Text('Use Token'),
-              )
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -453,10 +456,7 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
       itemBuilder: (context, index) {
         if (_showFavorites) {
           if (index == 0) {
-            return const ListTile(
-              dense: true,
-              title: Text('Favorites'),
-            );
+            return const ListTile(dense: true, title: Text('Favorites'));
           }
           final favIndex = index - 1;
           if (favIndex < _favorites.length) {
@@ -494,7 +494,8 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
     );
   }
 
-  List<EndpointItem> get _visibleEndpoints => _showSpecEndpoints ? _endpoints : _knownEndpoints;
+  List<EndpointItem> get _visibleEndpoints =>
+      _showSpecEndpoints ? _endpoints : _knownEndpoints;
 
   List<EndpointItem> _filterEndpoints(List<EndpointItem> list) {
     final q = _filterText.trim();
@@ -559,10 +560,13 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
     final auth = (_includeAuth && token != null)
         ? '-H "Authorization: Bearer $token"'
         : '';
-    final data = (_method == 'POST' || _method == 'PUT') && _bodyCtrl.text.trim().isNotEmpty
+    final data =
+        (_method == 'POST' || _method == 'PUT') &&
+            _bodyCtrl.text.trim().isNotEmpty
         ? "-d '${_bodyCtrl.text.replaceAll("'", "'\\''")}'"
         : '';
-    final curl = 'curl -X \"$_method\" \\\n+  \"$url\" \\\n+  $accept \\\n+  $content \\\n+  $auth \\\n+  $data';
+    final curl =
+        'curl -X \"$_method\" \\\n+  \"$url\" \\\n+  $accept \\\n+  $content \\\n+  $auth \\\n+  $data';
     await Clipboard.setData(ClipboardData(text: curl));
     _snack('cURL copied');
   }
@@ -593,23 +597,37 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
       final methods = entry.value as Map<String, dynamic>;
       for (final m in methods.entries) {
         final method = m.key.toUpperCase();
-        if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].contains(method)) continue;
+        if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].contains(method))
+          continue;
         final meta = m.value as Map<String, dynamic>;
         final tags = (meta['tags'] as List?)?.cast() ?? [];
         final group = tags.isNotEmpty ? tags.first.toString() : 'General';
-        final security = (meta['security'] as List?) ?? (spec['security'] as List?);
+        final security =
+            (meta['security'] as List?) ?? (spec['security'] as List?);
         final includeAuth = security != null && security.isNotEmpty;
         String? exampleBody;
-        final params = (meta['parameters'] as List?)?.cast<Map<String, dynamic>>();
+        final params = (meta['parameters'] as List?)
+            ?.cast<Map<String, dynamic>>();
         final bodyParam = params?.firstWhere(
           (p) => p['in'] == 'body',
           orElse: () => {},
         );
         if (bodyParam != null && bodyParam.isNotEmpty) {
           // Try schema + example (best effort)
-          exampleBody = _buildExampleFromSchema(bodyParam['schema'] as Map<String, dynamic>?, spec);
+          exampleBody = _buildExampleFromSchema(
+            bodyParam['schema'] as Map<String, dynamic>?,
+            spec,
+          );
         }
-        out.add(EndpointItem(group, method, path, exampleBody: exampleBody, includeAuth: includeAuth));
+        out.add(
+          EndpointItem(
+            group,
+            method,
+            path,
+            exampleBody: exampleBody,
+            includeAuth: includeAuth,
+          ),
+        );
       }
     }
     // Deterministic order: group, path, method
@@ -623,7 +641,10 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
     return out;
   }
 
-  String? _buildExampleFromSchema(Map<String, dynamic>? schema, Map<String, dynamic> spec) {
+  String? _buildExampleFromSchema(
+    Map<String, dynamic>? schema,
+    Map<String, dynamic> spec,
+  ) {
     if (schema == null) return null;
     try {
       final definitions = (spec['definitions'] as Map<String, dynamic>? ?? {});
@@ -643,12 +664,18 @@ class _ApiConsolePageState extends State<ApiConsolePage> {
             obj[k] = prop['example'];
           } else {
             final type = prop['type'];
-            if (type == 'string') obj[k] = '';
-            else if (type == 'integer') obj[k] = 0;
-            else if (type == 'number') obj[k] = 0;
-            else if (type == 'boolean') obj[k] = false;
-            else if (type == 'array') obj[k] = [];
-            else if (type == 'object') obj[k] = {};
+            if (type == 'string')
+              obj[k] = '';
+            else if (type == 'integer')
+              obj[k] = 0;
+            else if (type == 'number')
+              obj[k] = 0;
+            else if (type == 'boolean')
+              obj[k] = false;
+            else if (type == 'array')
+              obj[k] = [];
+            else if (type == 'object')
+              obj[k] = {};
           }
         });
         return obj;
@@ -758,7 +785,12 @@ const List<EndpointItem> _knownEndpoints = [
 
   // Admins
   EndpointItem('Admins', 'GET', '/admins'),
-  EndpointItem('Admins', 'POST', '/admins', exampleBody: '{"id":0,"user_id":5}'),
+  EndpointItem(
+    'Admins',
+    'POST',
+    '/admins',
+    exampleBody: '{"id":0,"user_id":5}',
+  ),
   EndpointItem('Admins', 'GET', '/admins/1'),
   EndpointItem('Admins', 'DELETE', '/admins/1'),
 
@@ -876,7 +908,12 @@ const List<EndpointItem> _knownEndpoints = [
 
   // Learners
   EndpointItem('Learners', 'GET', '/learners'),
-  EndpointItem('Learners', 'POST', '/learners', exampleBody: '{"id":0,"user_id":5,"flag_count":0}'),
+  EndpointItem(
+    'Learners',
+    'POST',
+    '/learners',
+    exampleBody: '{"id":0,"user_id":5,"flag_count":0}',
+  ),
   EndpointItem('Learners', 'GET', '/learners/1'),
   EndpointItem('Learners', 'DELETE', '/learners/1'),
 
@@ -984,11 +1021,27 @@ const List<EndpointItem> _knownEndpoints = [
         '{"amount":10000,"currency":"THB","paymentType":"promptpay","description":"desc","user_id":5}',
   ),
   EndpointItem('Payments', 'GET', '/payments/transactions', includeAuth: false),
-  EndpointItem('Payments', 'GET', '/payments/transactions/chrg_test', includeAuth: false),
-  EndpointItem('Payments', 'POST', '/payments/transactions/chrg_test/refund', exampleBody: '{"amount":1000}'),
+  EndpointItem(
+    'Payments',
+    'GET',
+    '/payments/transactions/chrg_test',
+    includeAuth: false,
+  ),
+  EndpointItem(
+    'Payments',
+    'POST',
+    '/payments/transactions/chrg_test/refund',
+    exampleBody: '{"amount":1000}',
+  ),
 
   // Webhooks (no auth)
-  EndpointItem('Payments', 'POST', '/webhooks/omise', includeAuth: false, exampleBody: '{"object":"event","data":{}}'),
+  EndpointItem(
+    'Payments',
+    'POST',
+    '/webhooks/omise',
+    includeAuth: false,
+    exampleBody: '{"object":"event","data":{}}',
+  ),
 ];
 
 class SavedRequest {
@@ -1005,16 +1058,16 @@ class SavedRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'method': method,
-        'path': path,
-        'body': body,
-        'includeAuth': includeAuth,
-      };
+    'method': method,
+    'path': path,
+    'body': body,
+    'includeAuth': includeAuth,
+  };
 
   static SavedRequest fromJson(Map<String, dynamic> json) => SavedRequest(
-        method: json['method'] as String,
-        path: json['path'] as String,
-        body: json['body'] as String?,
-        includeAuth: (json['includeAuth'] as bool?) ?? true,
-      );
+    method: json['method'] as String,
+    path: json['path'] as String,
+    body: json['body'] as String?,
+    includeAuth: (json['includeAuth'] as bool?) ?? true,
+  );
 }
