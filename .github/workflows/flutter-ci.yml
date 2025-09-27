@@ -2,27 +2,9 @@ name: Flutter CI
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'lib/**'
-      - 'test/**'
-      - 'assets/**'
-      - 'pubspec.yaml'
-      - 'pubspec.lock'
-      - 'android/**'
-      - 'ios/**'
-      - '.github/workflows/flutter-ci.yml'
+    branches: [ "main" ]
   pull_request:
-    branches: [main]
-    paths:
-      - 'lib/**'
-      - 'test/**'
-      - 'assets/**'
-      - 'pubspec.yaml'
-      - 'pubspec.lock'
-      - 'android/**'
-      - 'ios/**'
-      - '.github/workflows/flutter-ci.yml'
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -31,27 +13,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Detect whether app-relevant files changed
-      - name: Filter changed paths
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            app:
-              - 'lib/**'
-              - 'test/**'
-              - 'assets/**'
-              - 'pubspec.yaml'
-              - 'pubspec.lock'
-              - 'android/**'
-              - 'ios/**'
-
-      # Stop immediately if nothing relevant changed
-      - name: No app changes — skip
-        if: steps.changes.outputs.app != 'true'
+      # Compute a hash of files that affect the build.
+      # Tweak the globs to your repo (lib/, android/, ios/, assets/, etc.)
+      - name: Compute build cache key
+        id: key
         run: |
-          echo "No app code changes detected. Skipping build."
-          exit 0
+          echo "codehash=${{ hashFiles('pubspec.yaml', 'pubspec.lock', 'analysis_options.yaml', '.metadata', 'lib/**', 'assets/**', 'android/**', 'ios/**', 'web/**', 'windows/**', 'macos/**', 'linux/**') }}" >> "$GITHUB_OUTPUT"
+
+      # Try to restore previously built APK/AAB keyed by OS, toolchain and code hash
+      - name: Restore built artifacts from cache
+        id: restore-build
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+          key: flutter-build-${{ runner.os }}-java21-flutter3.35.1-${{ steps.key.outputs.codehash }}
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -64,28 +41,7 @@ jobs:
         with:
           flutter-version: '3.35.1'
           channel: 'stable'
-          cache: true
-
-      # Optional but helps Gradle incremental builds
-      - name: Enable Gradle build cache
-        run: |
-          mkdir -p ~/.gradle
-          echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
-
-      # Restore caches including previous build outputs
-      - name: Restore build & tool caches
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            ~/.android/build-cache
-            build
-          key: ${{ runner.os }}-flutter-3.35.1-java21-${{ hashFiles('pubspec.lock', 'lib/**', 'android/**', 'ios/**') }}
-          restore-keys: |
-            ${{ runner.os }}-flutter-3.35.1-java21-
+          cache: true # caches Flutter SDK + pub packages
 
       - name: Check Flutter version
         run: flutter --version
@@ -96,22 +52,31 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      # Only build if we didn't restore build outputs from cache
+      # Only build when the cache didn't have matching artifacts
       - name: Build APK
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: flutter build apk --release
+        if: steps.restore-build.outputs.cache-hit != 'true'
+        run: flutter build apk
 
       - name: Build App Bundle
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: flutter build appbundle --release
+        if: steps.restore-build.outputs.cache-hit != 'true'
+        run: flutter build appbundle
 
-      # Upload from build/ whether it came from cache or a fresh build
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+      # Save the produced artifacts into the cache for next runs with the same hash
+      - name: Save built artifacts to cache
+        if: steps.restore-build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
         with:
-          name: app-builds
           path: |
-            build/app/outputs/**/*.apk
-            build/app/outputs/**/*.aab
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+          key: flutter-build-${{ runner.os }}-java21-flutter3.35.1-${{ steps.key.outputs.codehash }}
+
+      # Optional: show whether we skipped building
+      - name: Summary
+        run: |
+          if [ "${{ steps.restore-build.outputs.cache-hit }}" = "true" ]; then
+            echo "✅ Reused cached APK/AAB (no relevant code changes)."
+          else
+            echo "🛠️ Built APK/AAB (cache miss or code changed)."
+          fi
 
