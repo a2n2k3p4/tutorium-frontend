@@ -11,6 +11,7 @@ void main() {
     dotenv.loadFromString(envString: '''
       API_URL=http://xxx.xxx.xxx.xxx
       PORT=xxxxx
+      LOGIN_API=http://xxx.xxx.xxx.xxx/login
     ''');
   });
 

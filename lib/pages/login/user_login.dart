@@ -57,15 +57,10 @@ class LoginResponse {
 // API function
 Future<LoginResponse> fetchUser(String username, String password) async {
   try {
-    final apiKey = dotenv.env["API_URL"];
-    final port = dotenv.env["PORT"];
-    final route = "login";
-    final url = "${apiKey!}:${port!}/${route}";
-
     final loginData = {'username': username, 'password': password};
-
+    final apiKey = dotenv.env["LOGIN_API"];
     final response = await http.post(
-      Uri.parse(url),
+      Uri.parse('$apiKey'),
       headers: {
         'User-Agent': 'flutter_app',
         'Accept': 'application/json',
