@@ -11,6 +11,7 @@ void main() {
     dotenv.loadFromString(envString: '''
       API_URL=http://xxx.xxx.xxx.xxx
       PORT=xxxxx
+      LOGIN_API=http://xxx.xxx.xxx.xxx/login
     ''');
   });
 
@@ -20,28 +21,12 @@ void main() {
     // 1. Build the app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // 2. Verify that the AppBar title is "Learner Home".
-    expect(
-      find.descendant(
-        of: find.byType(AppBar),
-        matching: find.text('Learner Home'),
-      ),
-      findsOneWidget,
-    );
-
-    // 3. Verify that the "Upcoming Schedule" text is visible.
-    expect(find.text('Upcoming Schedule'), findsOneWidget);
-
-    // 4. Verify that the SearchPage is not visible.
+    // App starts on LoginKuPage now; verify key UI is present.
+    expect(find.text('KU ALL Login'), findsOneWidget);
+    expect(find.text('Trouble signing in?'), findsOneWidget);
+    // Ensure we are not already on a main page.
+    expect(find.text('Learner Home'), findsNothing);
     expect(find.text('Search Class'), findsNothing);
-
-    // 5. Tap the 'Search' icon in the bottom navigation bar.
-    await tester.tap(find.byIcon(Icons.search));
-    await tester.pump();
-
-    // 6. Verify that navigation was successful.
-    expect(find.text('Search Class'), findsOneWidget);
-    expect(find.text('Upcoming Schedule'), findsNothing);
   });
 
   testWidgets(
