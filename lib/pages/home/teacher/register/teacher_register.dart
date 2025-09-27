@@ -32,7 +32,11 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
             const SizedBox(height: 35),
             Padding(
               padding: const EdgeInsets.only(left: 115),
-              child: Image.asset("assets/images/Teacher.png", width: 120, height: 120),
+              child: Image.asset(
+                "assets/images/Teacher.png",
+                width: 120,
+                height: 120,
+              ),
             ),
             const SizedBox(height: 35),
             Text("What you will get", style: TextStyle(fontSize: 25)),
@@ -96,9 +100,7 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (ctx) => const PaymentScreen(
-                        userId: 1,
-                      ),
+                      builder: (ctx) => const PaymentScreen(userId: 1),
                     ),
                   );
                 },

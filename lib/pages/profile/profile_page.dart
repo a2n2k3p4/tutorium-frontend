@@ -222,15 +222,15 @@ class _ProfilePageState extends State<ProfilePage> {
               TextButton(
                 onPressed: () {},
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.black, 
+                  foregroundColor: Colors.black,
                   padding: EdgeInsets.zero,
                 ),
-                child: const Text("   See more",style: TextStyle( color: Colors.grey),),
+                child: const Text(
+                  "   See more",
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-              Icon(
-                Icons.keyboard_arrow_right,
-                color: Colors.black,
-              )
+              Icon(Icons.keyboard_arrow_right, color: Colors.black),
             ],
           ),
         ],

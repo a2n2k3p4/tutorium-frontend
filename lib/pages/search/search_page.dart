@@ -15,7 +15,7 @@ class _SearchPageState extends State<SearchPage> {
   List<dynamic> _filteredClasses = [];
   bool isLoading = false;
   String currentQuery = "";
-  
+
   List<String> selectedCategories = [];
   double? minRating;
   double? maxRating;
@@ -54,7 +54,6 @@ class _SearchPageState extends State<SearchPage> {
     },
   ];
 
-
   @override
   void initState() {
     super.initState();
@@ -84,7 +83,7 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {
       currentQuery = query;
     });
-    
+
     if (!isFilterActive) {
       setState(() {
         _filteredClasses = api.searchLocal(_allClasses, query);
@@ -103,9 +102,9 @@ class _SearchPageState extends State<SearchPage> {
       final searched = api.searchLocal(data, query);
       setState(() => _filteredClasses = searched);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       setState(() => isLoading = false);
     }
@@ -133,12 +132,16 @@ class _SearchPageState extends State<SearchPage> {
       'Language',
       'History',
       'Technology',
-      'Arts'
+      'Arts',
     ];
-    
-    final minRatingController = TextEditingController(text: minRating?.toString() ?? '');
-    final maxRatingController = TextEditingController(text: maxRating?.toString() ?? '');
-    
+
+    final minRatingController = TextEditingController(
+      text: minRating?.toString() ?? '',
+    );
+    final maxRatingController = TextEditingController(
+      text: maxRating?.toString() ?? '',
+    );
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -156,7 +159,10 @@ class _SearchPageState extends State<SearchPage> {
                     children: [
                       Text(
                         "Filter Options",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       TextButton(
                         onPressed: () {
@@ -174,8 +180,11 @@ class _SearchPageState extends State<SearchPage> {
                     ],
                   ),
                   SizedBox(height: 16),
-                  
-                  Text("Categories", style: TextStyle(fontWeight: FontWeight.bold)),
+
+                  Text(
+                    "Categories",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   Wrap(
                     spacing: 8,
                     children: categories.map((category) {
@@ -196,9 +205,12 @@ class _SearchPageState extends State<SearchPage> {
                       );
                     }).toList(),
                   ),
-                  
+
                   SizedBox(height: 16),
-                  Text("Rating Range (0-5)", style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    "Rating Range (0-5)",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   Row(
                     children: [
                       Expanded(
@@ -208,11 +220,13 @@ class _SearchPageState extends State<SearchPage> {
                             labelText: "Min Rating",
                             border: OutlineInputBorder(),
                             errorText: _validateRatingRange(
-                              minRatingController.text, 
-                              maxRatingController.text
+                              minRatingController.text,
+                              maxRatingController.text,
                             )?.minError,
                           ),
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           onChanged: (value) {
                             setModalState(() {
                               minRating = double.tryParse(value);
@@ -229,11 +243,13 @@ class _SearchPageState extends State<SearchPage> {
                             labelText: "Max Rating",
                             border: OutlineInputBorder(),
                             errorText: _validateRatingRange(
-                              minRatingController.text, 
-                              maxRatingController.text
+                              minRatingController.text,
+                              maxRatingController.text,
                             )?.maxError,
                           ),
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           onChanged: (value) {
                             setModalState(() {
                               maxRating = double.tryParse(value);
@@ -244,22 +260,26 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                     ],
                   ),
-                  
+
                   SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
                       final validation = _validateRatingRange(
-                        minRatingController.text, 
-                        maxRatingController.text
+                        minRatingController.text,
+                        maxRatingController.text,
                       );
-                      
+
                       if (validation?.hasError == true) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Please fix rating validation errors")),
+                          SnackBar(
+                            content: Text(
+                              "Please fix rating validation errors",
+                            ),
+                          ),
                         );
                         return;
                       }
-                      
+
                       Navigator.pop(context);
                       _search(currentQuery);
                     },
@@ -281,29 +301,29 @@ class _SearchPageState extends State<SearchPage> {
   RatingValidation? _validateRatingRange(String minText, String maxText) {
     final min = double.tryParse(minText);
     final max = double.tryParse(maxText);
-    
+
     if (minText.isEmpty && maxText.isEmpty) return null;
-    
+
     String? minError;
     String? maxError;
     bool hasError = false;
-    
+
     if (min != null && (min < 0 || min > 5)) {
       minError = "Must be between 0-5";
       hasError = true;
     }
-    
+
     if (max != null && (max < 0 || max > 5)) {
       maxError = "Must be between 0-5";
       hasError = true;
     }
-    
+
     if (min != null && max != null && min > max) {
       minError = "Min cannot be greater than max";
       maxError = "Max cannot be less than min";
       hasError = true;
     }
-    
+
     return hasError ? RatingValidation(minError, maxError, true) : null;
   }
 
@@ -345,9 +365,9 @@ class _SearchPageState extends State<SearchPage> {
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isFilterActive 
-                      ? Theme.of(context).colorScheme.secondary 
-                      : Theme.of(context).primaryColor,
+                    color: isFilterActive
+                        ? Theme.of(context).colorScheme.secondary
+                        : Theme.of(context).primaryColor,
                   ),
                   child: IconButton(
                     icon: Icon(Icons.filter_list, color: Colors.white),
@@ -357,8 +377,8 @@ class _SearchPageState extends State<SearchPage> {
               ],
             ),
           ),
-          
-          if (isFilterActive) 
+
+          if (isFilterActive)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Wrap(
@@ -366,12 +386,16 @@ class _SearchPageState extends State<SearchPage> {
                 children: [
                   if (selectedCategories.isNotEmpty)
                     Chip(
-                      label: Text("Categories: ${selectedCategories.join(', ')}"),
+                      label: Text(
+                        "Categories: ${selectedCategories.join(', ')}",
+                      ),
                       onDeleted: () {
                         setState(() {
                           selectedCategories.clear();
-                          isFilterActive = selectedCategories.isNotEmpty || 
-                                         minRating != null || maxRating != null;
+                          isFilterActive =
+                              selectedCategories.isNotEmpty ||
+                              minRating != null ||
+                              maxRating != null;
                           _search(currentQuery);
                         });
                       },
@@ -382,8 +406,10 @@ class _SearchPageState extends State<SearchPage> {
                       onDeleted: () {
                         setState(() {
                           minRating = null;
-                          isFilterActive = selectedCategories.isNotEmpty || 
-                                         minRating != null || maxRating != null;
+                          isFilterActive =
+                              selectedCategories.isNotEmpty ||
+                              minRating != null ||
+                              maxRating != null;
                           _search(currentQuery);
                         });
                       },
@@ -394,8 +420,10 @@ class _SearchPageState extends State<SearchPage> {
                       onDeleted: () {
                         setState(() {
                           maxRating = null;
-                          isFilterActive = selectedCategories.isNotEmpty || 
-                                         minRating != null || maxRating != null;
+                          isFilterActive =
+                              selectedCategories.isNotEmpty ||
+                              minRating != null ||
+                              maxRating != null;
                           _search(currentQuery);
                         });
                       },
@@ -411,44 +439,65 @@ class _SearchPageState extends State<SearchPage> {
                   const Center(child: CircularProgressIndicator())
                 else if (currentQuery.isNotEmpty || isFilterActive)
                   _filteredClasses.isNotEmpty
-                    ? GridView.builder(
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(8),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                          childAspectRatio: 0.8,
-                        ),
-                        itemCount: _filteredClasses.length,
-                        itemBuilder: (context, index) {
-                          final item = _filteredClasses[index];
-                          return ScheduleCard_search(
-                            className: item['class_name'] ?? item['className'] ?? 'Unnamed Class',
-                            enrolledLearner: item['enrolledLearner'] ?? 0,
-                            teacherName: item['teacher_name'] ?? item['teacherName'] ?? 'Unknown Teacher',
-                            date: DateTime.tryParse(item['date'] ?? '') ?? DateTime.now(),
-                            startTime: parseTime(item['startTime'] ?? '00:00'),
-                            endTime: parseTime(item['endTime'] ?? '00:00'),
-                            imagePath: item['imagePath'] ?? 'assets/images/default.jpg',
-                            rating: (item['rating'] is num) ? (item['rating'] as num).toDouble() : 4.5,
-                          );
-                        },
-                      )
-                    : const Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text("No results found"),
-                      )
-                else 
+                      ? GridView.builder(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(8),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: 0.8,
+                              ),
+                          itemCount: _filteredClasses.length,
+                          itemBuilder: (context, index) {
+                            final item = _filteredClasses[index];
+                            return ScheduleCard_search(
+                              className:
+                                  item['class_name'] ??
+                                  item['className'] ??
+                                  'Unnamed Class',
+                              enrolledLearner: item['enrolledLearner'] ?? 0,
+                              teacherName:
+                                  item['teacher_name'] ??
+                                  item['teacherName'] ??
+                                  'Unknown Teacher',
+                              date:
+                                  DateTime.tryParse(item['date'] ?? '') ??
+                                  DateTime.now(),
+                              startTime: parseTime(
+                                item['startTime'] ?? '00:00',
+                              ),
+                              endTime: parseTime(item['endTime'] ?? '00:00'),
+                              imagePath:
+                                  item['imagePath'] ??
+                                  'assets/images/default.jpg',
+                              rating: (item['rating'] is num)
+                                  ? (item['rating'] as num).toDouble()
+                                  : 4.5,
+                            );
+                          },
+                        )
+                      : const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Text("No results found"),
+                        )
+                else
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         child: Text(
                           "Recommended Class",
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       SizedBox(
@@ -468,17 +517,23 @@ class _SearchPageState extends State<SearchPage> {
                                 startTime: parseTime(item['startTime']),
                                 endTime: parseTime(item['endTime']),
                                 imagePath: item['imagePath'],
-                                rating: item['rating']
+                                rating: item['rating'],
                               ),
                             );
                           },
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         child: Text(
                           "Popular Class",
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       SizedBox(
@@ -498,7 +553,7 @@ class _SearchPageState extends State<SearchPage> {
                                 startTime: parseTime(item['startTime']),
                                 endTime: parseTime(item['endTime']),
                                 imagePath: item['imagePath'],
-                                rating: item['rating']
+                                rating: item['rating'],
                               ),
                             );
                           },
@@ -519,6 +574,6 @@ class RatingValidation {
   final String? minError;
   final String? maxError;
   final bool hasError;
-  
+
   RatingValidation(this.minError, this.maxError, this.hasError);
 }

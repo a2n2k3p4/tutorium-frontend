@@ -3,20 +3,17 @@ import 'package:tutorium_frontend/pages/login/user_login.dart';
 
 class LoginKuPage extends StatefulWidget {
   const LoginKuPage({super.key});
-  
+
   @override
   State<LoginKuPage> createState() => _LoginKuPageState();
-
 }
+
 class _LoginKuPageState extends State<LoginKuPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.lightGreen,
-      appBar: AppBar(
-        title: const Text(""),
-        backgroundColor: Colors.lightGreen,
-      ),
+      appBar: AppBar(title: const Text(""), backgroundColor: Colors.lightGreen),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -31,24 +28,38 @@ class _LoginKuPageState extends State<LoginKuPage> {
                   onPressed: () async {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (ctx) => const UserLoginPage()),
+                      MaterialPageRoute(
+                        builder: (ctx) => const UserLoginPage(),
+                      ),
                     );
                   },
-                  style: ElevatedButton.styleFrom(fixedSize: const Size(300, 40)),
+                  style: ElevatedButton.styleFrom(
+                    fixedSize: const Size(300, 40),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.max,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Image.asset("assets/images/KU-logo.jpg", width: 20, height: 20),
+                      Image.asset(
+                        "assets/images/KU-logo.jpg",
+                        width: 20,
+                        height: 20,
+                      ),
                       const SizedBox(width: 12),
-                      const Text("KU ALL Login", style: TextStyle(color: Colors.black)),
+                      const Text(
+                        "KU ALL Login",
+                        style: TextStyle(color: Colors.black),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextButton(
                   onPressed: () {},
-                  child: const Text("Trouble signing in?", style: TextStyle(color: Colors.black)),
+                  child: const Text(
+                    "Trouble signing in?",
+                    style: TextStyle(color: Colors.black),
+                  ),
                 ),
               ],
             ),

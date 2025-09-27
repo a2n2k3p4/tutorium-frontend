@@ -31,16 +31,8 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
   ];
 
   final List<Map<String, dynamic>> reviews = [
-    {
-      "name": "Alice",
-      "comment": "Great class, learned a lot!",
-      "rating": 4.5,
-    },
-    {
-      "name": "Bob",
-      "comment": "Good teacher, very patient.",
-      "rating": 4.0,
-    },
+    {"name": "Alice", "comment": "Great class, learned a lot!", "rating": 4.5},
+    {"name": "Bob", "comment": "Good teacher, very patient.", "rating": 4.0},
     {
       "name": "Charlie",
       "comment": "Really enjoyed the sessions!",
@@ -78,11 +70,11 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("🎸 Guitar Mastery 101",
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.bold)),
+                      Text(
+                        "🎸 Guitar Mastery 101",
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
 
                       const SizedBox(height: 8),
                       Row(
@@ -103,17 +95,20 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text("👨‍🏫 Teacher: John Smith",
-                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          const Text(
+                            "👨‍🏫 Teacher: John Smith",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           ElevatedButton(
                             onPressed: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                    content: Text("Go to Teacher Profile")),
+                                  content: Text("Go to Teacher Profile"),
+                                ),
                               );
                             },
                             child: const Text("View Profile"),
-                          )
+                          ),
                         ],
                       ),
 
@@ -121,9 +116,13 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                       const Text("📂 Category: Music"),
 
                       const Divider(height: 32),
-                      const Text("📅 Select Session",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Text(
+                        "📅 Select Session",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 8),
 
                       DropdownButton<Map<String, dynamic>>(
@@ -157,7 +156,8 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                  "Enrolled: ${selectedSession!['students']}/${selectedSession!['capacity']}"),
+                                "Enrolled: ${selectedSession!['students']}/${selectedSession!['capacity']}",
+                              ),
                               Text("Deadline: ${selectedSession!['deadline']}"),
                               Text("Price: \$${selectedSession!['price']}"),
                             ],
@@ -166,39 +166,46 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                       ],
 
                       const Divider(height: 32),
-                      const Text("⭐ Reviews",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Text(
+                        "⭐ Reviews",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 8),
 
                       Column(
                         children: [
                           ...reviews
                               .take(showAllReviews ? reviews.length : 2)
-                              .map((r) => ListTile(
-                                    leading: const CircleAvatar(
-                                        child: Icon(Icons.person)),
-                                    title: Text(r["name"]),
-                                    subtitle: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(r["comment"]),
-                                        Row(
-                                          children: List.generate(
-                                            5,
-                                            (i) => Icon(
-                                              i < r["rating"].round()
-                                                  ? Icons.star
-                                                  : Icons.star_border,
-                                              size: 16,
-                                              color: Colors.amber,
-                                            ),
+                              .map(
+                                (r) => ListTile(
+                                  leading: const CircleAvatar(
+                                    child: Icon(Icons.person),
+                                  ),
+                                  title: Text(r["name"]),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(r["comment"]),
+                                      Row(
+                                        children: List.generate(
+                                          5,
+                                          (i) => Icon(
+                                            i < r["rating"].round()
+                                                ? Icons.star
+                                                : Icons.star_border,
+                                            size: 16,
+                                            color: Colors.amber,
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                  )),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                           if (!showAllReviews && reviews.length > 2)
                             TextButton(
                               onPressed: () {
@@ -207,7 +214,7 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                                 });
                               },
                               child: const Text("See More Reviews"),
-                            )
+                            ),
                         ],
                       ),
 
@@ -233,8 +240,10 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                     : () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                              content: Text(
-                                  "Enrolled in session on ${selectedSession!['date']}")),
+                            content: Text(
+                              "Enrolled in session on ${selectedSession!['date']}",
+                            ),
+                          ),
                         );
                       },
                 style: ElevatedButton.styleFrom(

@@ -21,7 +21,9 @@ class SearchService {
         ? List<dynamic>.from(allClasses)
         : allClasses.where((c) {
             final name = (c["class_name"] ?? "").toString().toLowerCase();
-            final desc = (c["class_description"] ?? "").toString().toLowerCase();
+            final desc = (c["class_description"] ?? "")
+                .toString()
+                .toLowerCase();
             final teacher = (c["teacher_name"] ?? "").toString().toLowerCase();
             final q = query.trim().toLowerCase();
             return name.contains(q) || desc.contains(q) || teacher.contains(q);
@@ -35,7 +37,6 @@ class SearchService {
 
     return filtered;
   }
-
 
   Future<List<dynamic>> filterClasses({
     List<String>? categories,
@@ -60,7 +61,9 @@ class SearchService {
       }
     }
 
-    final uri = Uri.parse("$baseUrl/classes").replace(queryParameters: queryParams);
+    final uri = Uri.parse(
+      "$baseUrl/classes",
+    ).replace(queryParameters: queryParams);
 
     print("Filter request: $uri");
 
@@ -70,8 +73,12 @@ class SearchService {
       final List<dynamic> data = json.decode(response.body);
 
       data.sort((a, b) {
-        final ratingA = (a["rating"] is num) ? (a["rating"] as num).toDouble() : 0.0;
-        final ratingB = (b["rating"] is num) ? (b["rating"] as num).toDouble() : 0.0;
+        final ratingA = (a["rating"] is num)
+            ? (a["rating"] as num).toDouble()
+            : 0.0;
+        final ratingB = (b["rating"] is num)
+            ? (b["rating"] as num).toDouble()
+            : 0.0;
         return ratingB.compareTo(ratingA);
       });
 
