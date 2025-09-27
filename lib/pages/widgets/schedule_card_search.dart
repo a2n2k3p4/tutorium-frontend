@@ -135,13 +135,13 @@ class ScheduleCard_search extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => ClassInfoPage(),
-            ),
+            MaterialPageRoute(builder: (context) => ClassInfoPage()),
           );
         },
         child: Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
           elevation: 3,
           margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
           clipBehavior: Clip.antiAlias,
@@ -151,10 +151,7 @@ class ScheduleCard_search extends StatelessWidget {
               SizedBox(
                 height: 90,
                 width: double.infinity,
-                child: Image.asset(
-                  imagePath,
-                  fit: BoxFit.cover,
-                ),
+                child: Image.asset(imagePath, fit: BoxFit.cover),
               ),
               Padding(
                 padding: const EdgeInsets.all(8.0),
@@ -178,8 +175,11 @@ class ScheduleCard_search extends StatelessWidget {
                         ),
                         Row(
                           children: [
-                            const Icon(Icons.star,
-                                color: Colors.orange, size: 16),
+                            const Icon(
+                              Icons.star,
+                              color: Colors.orange,
+                              size: 16,
+                            ),
                             const SizedBox(width: 2),
                             Text(
                               rating.toStringAsFixed(1),

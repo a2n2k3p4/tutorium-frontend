@@ -8,11 +8,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 void main() {
   setUpAll(() {
     TestWidgetsFlutterBinding.ensureInitialized();
-    dotenv.loadFromString(envString: '''
+    dotenv.loadFromString(
+      envString: '''
       API_URL=http://xxx.xxx.xxx.xxx
       PORT=xxxxx
       LOGIN_API=http://xxx.xxx.xxx.xxx/login
-    ''');
+    ''',
+    );
   });
 
   testWidgets('App shows LearnerPage initially and can navigate', (

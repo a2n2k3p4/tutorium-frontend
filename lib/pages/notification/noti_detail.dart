@@ -29,16 +29,10 @@ class NotiDetail extends StatelessWidget {
           children: [
             Text(
               notification["title"],
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            Text(
-              notification["text"],
-              style: const TextStyle(fontSize: 16),
-            ),
+            Text(notification["text"], style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 12),
             Text(
               "Received: ${notification["time"]}",

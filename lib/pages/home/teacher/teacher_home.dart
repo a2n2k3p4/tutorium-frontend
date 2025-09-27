@@ -33,11 +33,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
               padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.co_present,
-                    color: Colors.green,
-                    size: 40,
-                  ),
+                  const Icon(Icons.co_present, color: Colors.green, size: 40),
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(
@@ -69,24 +65,19 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (ctx) => const TeacherRegisterPage()),
+                  MaterialPageRoute(
+                    builder: (ctx) => const TeacherRegisterPage(),
+                  ),
                 );
               },
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
-                  Icon(
-                    Icons.co_present_rounded,
-                    size: 60,
-                    color: Colors.black,
-                  ),
+                  Icon(Icons.co_present_rounded, size: 60, color: Colors.black),
                   SizedBox(height: 15),
                   Text(
                     "Become a Teacher",
-                    style: TextStyle(
-                      fontSize: 23,
-                      color: Colors.black,
-                    ),
+                    style: TextStyle(fontSize: 23, color: Colors.black),
                   ),
                 ],
               ),
