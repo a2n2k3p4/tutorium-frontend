@@ -22,7 +22,8 @@ class _SearchPageState extends State<SearchPage> {
   bool isFilterActive = false;
 
   final List<Map<String, dynamic>> scheduleData = [
-    {
+    { 
+      'classId': 1,
       'className': 'Guitar class by Jane',
       'enrolledLearner': 10,
       'teacherName': 'Jane Frost',
@@ -33,6 +34,7 @@ class _SearchPageState extends State<SearchPage> {
       'rating': 4.5,
     },
     {
+      'classId': 1,
       'className': 'Piano class by Jane',
       'enrolledLearner': 10,
       'teacherName': 'Jane Frost',
@@ -43,6 +45,7 @@ class _SearchPageState extends State<SearchPage> {
       'rating': 4.0,
     },
     {
+      'classId': 1,
       'className': 'Piano class by Jane',
       'enrolledLearner': 10,
       'teacherName': 'Jane Frost',
@@ -330,10 +333,6 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     DateTime parseDate(String dateStr) => DateTime.parse(dateStr);
-    TimeOfDay parseTime(String timeStr) {
-      final parts = timeStr.split(':');
-      return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -439,51 +438,36 @@ class _SearchPageState extends State<SearchPage> {
                   const Center(child: CircularProgressIndicator())
                 else if (currentQuery.isNotEmpty || isFilterActive)
                   _filteredClasses.isNotEmpty
-                      ? GridView.builder(
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          padding: const EdgeInsets.all(8),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                                childAspectRatio: 0.8,
-                              ),
-                          itemCount: _filteredClasses.length,
-                          itemBuilder: (context, index) {
-                            final item = _filteredClasses[index];
-                            return ScheduleCard_search(
-                              className:
-                                  item['class_name'] ??
-                                  item['className'] ??
-                                  'Unnamed Class',
-                              enrolledLearner: item['enrolledLearner'] ?? 0,
-                              teacherName:
-                                  item['teacher_name'] ??
-                                  item['teacherName'] ??
-                                  'Unknown Teacher',
-                              date:
-                                  DateTime.tryParse(item['date'] ?? '') ??
-                                  DateTime.now(),
-                              startTime: parseTime(
-                                item['startTime'] ?? '00:00',
-                              ),
-                              endTime: parseTime(item['endTime'] ?? '00:00'),
-                              imagePath:
-                                  item['imagePath'] ??
-                                  'assets/images/default.jpg',
-                              rating: (item['rating'] is num)
-                                  ? (item['rating'] as num).toDouble()
-                                  : 4.5,
-                            );
-                          },
-                        )
-                      : const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text("No results found"),
-                        )
-                else
+                    ? GridView.builder(
+                        shrinkWrap: true,
+                        physics: NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(8),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                          childAspectRatio: 0.8,
+                        ),
+                        itemCount: _filteredClasses.length,
+                        itemBuilder: (context, index) {
+                          final item = _filteredClasses[index];
+                          return ScheduleCard_search(
+                            classId: item['classId'] ?? item['id'],
+                            className: item['class_name'] ?? item['className'] ?? 'Unnamed Class',
+                            enrolledLearner: item['enrolledLearner'] ?? 0,
+                            teacherName: item['teacher_name'] ?? item['teacherName'] ?? 'Unknown Teacher',
+                            date: DateTime.tryParse(item['date'] ?? '') ?? DateTime.now(),
+                            imagePath: item['imagePath'] ?? 'assets/images/default.jpg',
+                            rating: (item['rating'] is num) ? (item['rating'] as num).toDouble() : 4.5,
+                          );
+                        },
+                      )
+
+                    : const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text("No results found"),
+                      )
+                else 
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -510,12 +494,11 @@ class _SearchPageState extends State<SearchPage> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 12),
                               child: ScheduleCard_search(
+                                classId: item['classId'],
                                 className: item['className'],
                                 enrolledLearner: item['enrolledLearner'],
                                 teacherName: item['teacherName'],
                                 date: parseDate(item['date']),
-                                startTime: parseTime(item['startTime']),
-                                endTime: parseTime(item['endTime']),
                                 imagePath: item['imagePath'],
                                 rating: item['rating'],
                               ),
@@ -546,12 +529,11 @@ class _SearchPageState extends State<SearchPage> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 12),
                               child: ScheduleCard_search(
+                                classId: item['classId'],
                                 className: item['className'],
                                 enrolledLearner: item['enrolledLearner'],
                                 teacherName: item['teacherName'],
                                 date: parseDate(item['date']),
-                                startTime: parseTime(item['startTime']),
-                                endTime: parseTime(item['endTime']),
                                 imagePath: item['imagePath'],
                                 rating: item['rating'],
                               ),

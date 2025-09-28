@@ -35,7 +35,7 @@ class ScheduleCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const ClassInfoPage(), // <-- navigate here
+            builder: (context) => const ClassEnrollPage(classId: 1,teacherName: "mark",), //เดี๋ยวมาเปลี่ยนเป็นหน้า class ของ learner
           ),
         );
       },

@@ -1,49 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
 
-class ClassInfoPage extends StatefulWidget {
-  const ClassInfoPage({super.key});
+class ClassEnrollPage extends StatefulWidget {
+  final int classId;
+  final String teacherName;
+
+  const ClassEnrollPage({super.key, required this.classId, required this.teacherName});
 
   @override
-  State<ClassInfoPage> createState() => _ClassInfoPageState();
+  State<ClassEnrollPage> createState() => _ClassEnrollPageState();
 }
 
-class _ClassInfoPageState extends State<ClassInfoPage> {
-  Map<String, dynamic>? selectedSession;
+class _ClassEnrollPageState extends State<ClassEnrollPage> {
+  ClassInfo? classInfo;
+  List<ClassSession> sessions = [];
+  bool isLoading = true;
+  ClassSession? selectedSession;
   bool showAllReviews = false;
+  late Future<List<ClassSession>> futureSessions;
 
-  final List<Map<String, dynamic>> sessions = [
-    {
-      "date": "2025-10-01",
-      "time": "14:00 - 16:00",
-      "students": 5,
-      "capacity": 10,
-      "deadline": "2025-09-28",
-      "price": 49.99,
-    },
-    {
-      "date": "2025-10-05",
-      "time": "10:00 - 12:00",
-      "students": 8,
-      "capacity": 10,
-      "deadline": "2025-10-02",
-      "price": 59.99,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    loadData();
+  }
 
-  final List<Map<String, dynamic>> reviews = [
-    {"name": "Alice", "comment": "Great class, learned a lot!", "rating": 4.5},
-    {"name": "Bob", "comment": "Good teacher, very patient.", "rating": 4.0},
-    {
-      "name": "Charlie",
-      "comment": "Really enjoyed the sessions!",
-      "rating": 5.0,
-    },
-    {
-      "name": "Diana",
-      "comment": "Nice pace and easy to follow.",
-      "rating": 4.2,
-    },
-  ];
+  Future<void> loadData() async {
+    try {
+      final fetchedSessions =
+          await ClassSessionService().fetchClassSessions(widget.classId);
+      final fetchedClassInfo =
+          await ClassSessionService().fetchClassInfo(widget.classId);
+
+      setState(() {
+        sessions = fetchedSessions;
+        classInfo = fetchedClassInfo;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      debugPrint("Error loading class data: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +56,6 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                 expandedHeight: 250,
                 pinned: true,
                 flexibleSpace: FlexibleSpaceBar(
-                  title: const Text("Class Info"),
                   background: Image.asset(
                     "assets/images/guitar.jpg",
                     fit: BoxFit.cover,
@@ -67,166 +66,150 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "🎸 Guitar Mastery 101",
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-
-                      const SizedBox(height: 8),
-                      Row(
-                        children: const [
-                          Icon(Icons.star, color: Colors.amber),
-                          SizedBox(width: 4),
-                          Text("4.8 (120 reviews)"),
-                        ],
-                      ),
-
-                      const SizedBox(height: 16),
-                      const Text(
-                        "Learn the fundamentals of guitar playing, chords, "
-                        "strumming patterns, and basic music theory.",
-                      ),
-
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            "👨‍🏫 Teacher: John Smith",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Go to Teacher Profile"),
-                                ),
-                              );
-                            },
-                            child: const Text("View Profile"),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 16),
-                      const Text("📂 Category: Music"),
-
-                      const Divider(height: 32),
-                      const Text(
-                        "📅 Select Session",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      DropdownButton<Map<String, dynamic>>(
-                        isExpanded: true,
-                        hint: const Text("Choose a session"),
-                        value: selectedSession,
-                        items: sessions.map((session) {
-                          return DropdownMenuItem(
-                            value: session,
-                            child: Text(
-                              "${session['date']} | ${session['time']} - \$${session['price']}",
+                  child: isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "🎨 ${classInfo?.name ?? "Untitled Class"}",
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
                             ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedSession = value;
-                          });
-                        },
-                      ),
 
-                      if (selectedSession != null) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Enrolled: ${selectedSession!['students']}/${selectedSession!['capacity']}",
-                              ),
-                              Text("Deadline: ${selectedSession!['deadline']}"),
-                              Text("Price: \$${selectedSession!['price']}"),
-                            ],
-                          ),
-                        ),
-                      ],
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.star, color: Colors.amber),
+                                const SizedBox(width: 4),
+                                Text("${classInfo?.rating ?? 0}/5"),
+                              ],
+                            ),
 
-                      const Divider(height: 32),
-                      const Text(
-                        "⭐ Reviews",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                            const SizedBox(height: 16),
+                            Text(classInfo?.description ?? "No description available"),
 
-                      Column(
-                        children: [
-                          ...reviews
-                              .take(showAllReviews ? reviews.length : 2)
-                              .map(
-                                (r) => ListTile(
-                                  leading: const CircleAvatar(
-                                    child: Icon(Icons.person),
-                                  ),
-                                  title: Text(r["name"]),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(r["comment"]),
-                                      Row(
-                                        children: List.generate(
-                                          5,
-                                          (i) => Icon(
-                                            i < r["rating"].round()
-                                                ? Icons.star
-                                                : Icons.star_border,
-                                            size: 16,
-                                            color: Colors.amber,
-                                          ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "👨‍🏫 Teacher: ${widget.teacherName}",
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          "Go to Teacher Profile of ${widget.teacherName}",
                                         ),
                                       ),
-                                    ],
+                                    );
+                                  },
+                                  child: const Text("View Profile"),
+                                )
+                              ],
+                            ),
+
+                            const SizedBox(height: 16),
+                            Text("📂 Category: ${classInfo?.category ?? "General"}"),
+
+                            const Divider(height: 32),
+
+                            const Text("📅 Select Session",
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+
+                            sessions.isNotEmpty
+                                ? DropdownButton<ClassSession>(
+                                    isExpanded: true,
+                                    hint: const Text("Choose a session"),
+                                    value: selectedSession,
+                                    items: sessions.map((session) {
+                                      String pad(int n) => n.toString().padLeft(2, '0');
+
+                                      String formatDate(DateTime dt) {
+                                        final weekdays = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+                                        final months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                                        return "${weekdays[dt.weekday - 1]}, ${months[dt.month - 1]} ${dt.day}";
+                                      }
+
+                                      String formatTime(DateTime dt) {
+                                        final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+                                        final minute = pad(dt.minute);
+                                        final ampm = dt.hour >= 12 ? "PM" : "AM";
+                                        return "$hour:$minute $ampm";
+                                      }
+
+                                      final dateStr = formatDate(session.classStart);
+                                      final timeStr = "${formatTime(session.classStart)} – ${formatTime(session.classFinish)}";
+                                      final deadlineStr = formatDate(session.enrollmentDeadline);
+
+                                      return DropdownMenuItem(
+                                        value: session,
+                                        child: Text(
+                                          "$dateStr • $timeStr • \$${session.price}  "
+                                          "(Deadline: $deadlineStr)",
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      );
+                                    }).toList(),
+
+                                    onChanged: (value) {
+                                      setState(() {
+                                        selectedSession = value;
+                                      });
+                                    },
+                                  )
+                                : const Text("No sessions available"),
+
+                            const Divider(height: 32),
+
+                            const Text("⭐ Reviews",
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            ListTile(
+                              leading: const CircleAvatar(child: Icon(Icons.person)),
+                              title: const Text("Alice"),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text("Great class, learned a lot!"),
+                                  Row(
+                                    children: List.generate(
+                                      5,
+                                      (i) => Icon(
+                                        i < 4 ? Icons.star : Icons.star_border,
+                                        size: 16,
+                                        color: Colors.amber,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                          if (!showAllReviews && reviews.length > 2)
+                            ),
                             TextButton(
                               onPressed: () {
                                 setState(() {
-                                  showAllReviews = true;
+                                  showAllReviews = !showAllReviews;
                                 });
                               },
-                              child: const Text("See More Reviews"),
+                              child: Text(showAllReviews ? "See Less" : "See More"),
                             ),
-                        ],
-                      ),
 
-                      const SizedBox(height: 80),
-                    ],
-                  ),
+                            const SizedBox(height: 80),
+                          ],
+                        ),
                 ),
               ),
             ],
           ),
 
-          // 🔹 Fixed Enroll Button
           Positioned(
             bottom: 0,
             left: 0,
@@ -241,7 +224,7 @@ class _ClassInfoPageState extends State<ClassInfoPage> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              "Enrolled in session on ${selectedSession!['date']}",
+                              "Enrolled in session ${selectedSession!.description}",
                             ),
                           ),
                         );

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../widgets/schedule_card.dart';
+import '../widgets/schedule_card_learner.dart';
 
 class LearnerHomePage extends StatefulWidget {
   final VoidCallback onSwitch;
