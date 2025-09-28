@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:tutorium_frontend/pages/home/teacher/register/teacher_register.dart';
 
-class TeacherHomePage extends StatefulWidget {
+class BecomeTeacherHomePage extends StatefulWidget {
   final VoidCallback onSwitch;
-  const TeacherHomePage({super.key, required this.onSwitch});
+  const BecomeTeacherHomePage({super.key, required this.onSwitch});
 
   @override
-  State<TeacherHomePage> createState() => _TeacherHomePageState();
+  State<BecomeTeacherHomePage> createState() => _BecomeTeacherHomePageState();
 }
 
-class _TeacherHomePageState extends State<TeacherHomePage> {
+class _BecomeTeacherHomePageState extends State<BecomeTeacherHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
