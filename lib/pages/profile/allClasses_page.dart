@@ -10,9 +10,7 @@ class AllClassesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("All Classes"),
-      ),
+      appBar: AppBar(title: const Text("All Classes")),
       body: myClasses.isNotEmpty
           ? ListView.builder(
               itemCount: myClasses.length,
@@ -28,9 +26,7 @@ class AllClassesPage extends StatelessWidget {
                 );
               },
             )
-          : const Center(
-              child: Text("No classes found"),
-            ),
+          : const Center(child: Text("No classes found")),
     );
   }
 }

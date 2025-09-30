@@ -85,7 +85,10 @@ class ClassCard extends StatelessWidget {
                           ),
                         );
                       },
-                      child: const Text("Reviews",style: TextStyle(color: Colors.black),),
+                      child: const Text(
+                        "Reviews",
+                        style: TextStyle(color: Colors.black),
+                      ),
                     ),
                   ),
                 ],

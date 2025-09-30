@@ -45,8 +45,12 @@ class User {
       balance: (json['balance'] ?? 0).toDouble(),
       banCount: json['ban_count'] ?? 0,
       profilePicture: json['profile_picture'],
-      teacher: json['Teacher'] != null ? Teacher.fromJson(json['Teacher']) : null,
-      learner: json['Learner'] != null ? Learner.fromJson(json['Learner']) : null,
+      teacher: json['Teacher'] != null
+          ? Teacher.fromJson(json['Teacher'])
+          : null,
+      learner: json['Learner'] != null
+          ? Learner.fromJson(json['Learner'])
+          : null,
     );
   }
 
@@ -98,11 +102,7 @@ class Learner {
   final int userId;
   final int? flagCount;
 
-  Learner({
-    required this.id,
-    required this.userId,
-    this.flagCount,
-  });
+  Learner({required this.id, required this.userId, this.flagCount});
 
   factory Learner.fromJson(Map<String, dynamic> json) {
     return Learner(
@@ -142,7 +142,7 @@ class Review {
   final int classId;
   final String? comment;
   final double? rating;
-  final int? learnerUserId; 
+  final int? learnerUserId;
 
   Review({
     required this.id,
@@ -164,7 +164,6 @@ class Review {
     );
   }
 }
-
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -210,6 +209,7 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     }
   }
+
   Future<void> fetchClasses() async {
     try {
       final apiKey = dotenv.env["API_URL"];
@@ -227,7 +227,8 @@ class _ProfilePageState extends State<ProfilePage> {
           allClasses = fetchedClasses;
 
           if (user?.teacher != null) {
-            final fullName = "${user?.firstName ?? ''} ${user?.lastName ?? ''}".trim();
+            final fullName = "${user?.firstName ?? ''} ${user?.lastName ?? ''}"
+                .trim();
             myClasses = allClasses
                 .where((c) => c.teacherName == fullName)
                 .toList();
@@ -240,7 +241,6 @@ class _ProfilePageState extends State<ProfilePage> {
       print("Error fetching classes: $e");
     }
   }
-
 
   Future<String?> pickImageAndConvertToBase64() async {
     final picker = ImagePicker();
@@ -261,10 +261,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final response = await http.post(
       Uri.parse(apiUrl),
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "user_id": userId,
-        "profile_picture": base64Image,
-      }),
+      body: jsonEncode({"user_id": userId, "profile_picture": base64Image}),
     );
 
     if (response.statusCode == 200) {
@@ -283,6 +280,7 @@ class _ProfilePageState extends State<ProfilePage> {
       return MemoryImage(base64Decode(value));
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -366,48 +364,53 @@ class _ProfilePageState extends State<ProfilePage> {
                           user?.gender?.toLowerCase() == "male"
                               ? Icons.male
                               : user?.gender?.toLowerCase() == "female"
-                                  ? Icons.female
-                                  : Icons.account_circle_rounded,
+                              ? Icons.female
+                              : Icons.account_circle_rounded,
                           color: user?.gender?.toLowerCase() == "male"
                               ? Colors.blue
                               : user?.gender?.toLowerCase() == "female"
-                                  ? Colors.red
-                                  : Colors.black,
+                              ? Colors.red
+                              : Colors.black,
                           size: 30,
                         ),
                       ],
                     ),
                     if (user?.teacher != null)
-                        Text(
-                          "Email : ${user!.teacher!.email}",
-                          style: const TextStyle(fontSize: 16, color: Colors.black),
+                      Text(
+                        "Email : ${user!.teacher!.email}",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.black,
                         ),
-                    if (user?.learner != null && user?.teacher != null) 
-                        Text(
-                          "Learner & Teacher",
-                          style: TextStyle(fontSize: 16, color: Colors.black),
-                        )
-                    else if (user?.learner != null && user?.teacher == null) 
-                        Text(
-                          "Learner",
-                          style: TextStyle(fontSize: 16, color: Colors.black),
-                        )
+                      ),
+                    if (user?.learner != null && user?.teacher != null)
+                      Text(
+                        "Learner & Teacher",
+                        style: TextStyle(fontSize: 16, color: Colors.black),
+                      )
+                    else if (user?.learner != null && user?.teacher == null)
+                      Text(
+                        "Learner",
+                        style: TextStyle(fontSize: 16, color: Colors.black),
+                      )
                     else if (user?.learner == null && user?.teacher != null)
-                        Text(
-                          "Teacher",
-                          style: TextStyle(fontSize: 16, color: Colors.black),
-                        ),
+                      Text(
+                        "Teacher",
+                        style: TextStyle(fontSize: 16, color: Colors.black),
+                      ),
                     Row(
                       children: [
-                        if (user?.teacher != null) 
+                        if (user?.teacher != null)
                           Row(
                             children: [
                               const Text(
                                 "Teacher rate : 4.0",
-                                style: TextStyle(fontSize: 16, color: Colors.black),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black,
+                                ),
                               ),
-                              Icon(Icons.star,
-                              color: Colors.orange),
+                              Icon(Icons.star, color: Colors.orange),
                             ],
                           ),
                       ],
@@ -427,31 +430,31 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           if (user?.teacher != null)
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 228),
-                    child: Text(
-                      "${user!.teacher!.description}",
-                      style: TextStyle(fontSize: 16, color: Colors.black),
-                    ),
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 228),
+                  child: Text(
+                    "${user!.teacher!.description}",
+                    style: TextStyle(fontSize: 16, color: Colors.black),
                   ),
-                  const SizedBox(height: 70,)
-                ],
-              )
+                ),
+                const SizedBox(height: 70),
+              ],
+            )
           else
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 130),
-                    child: Text(
-                      "This user doesn't have description",
-                      style: TextStyle(fontSize: 16, color: Colors.black),
-                    ),
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 130),
+                  child: Text(
+                    "This user doesn't have description",
+                    style: TextStyle(fontSize: 16, color: Colors.black),
                   ),
-                  const SizedBox(height: 70),
-                ],
-              ),
+                ),
+                const SizedBox(height: 70),
+              ],
+            ),
           Row(
             children: [
               Padding(
@@ -466,7 +469,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => AllClassesPage(myClasses: myClasses),
+                      builder: (context) =>
+                          AllClassesPage(myClasses: myClasses),
                     ),
                   );
                 },
@@ -479,27 +483,30 @@ class _ProfilePageState extends State<ProfilePage> {
                   style: TextStyle(color: Colors.grey),
                 ),
               ),
-              const Icon(
-                Icons.keyboard_arrow_right,
-                color: Colors.black,
-              )
+              const Icon(Icons.keyboard_arrow_right, color: Colors.black),
             ],
           ),
           if (user?.teacher != null)
-              myClasses.isNotEmpty
-                  ? Column(
-                      children: myClasses.take(2).map((c) => ClassCard(
-                        id: c.id,
-                        className: c.className,
-                        teacherName: c.teacherName,
-                        rating: c.rating ?? 0.0,
-                        enrolledLearner: 100, // replace with real data
-                        imagePath: "assets/images/guitar.jpg", // wait for real image
-                      )).toList(),
-                    )
-                  : const Text("No classes found for this teacher")
+            myClasses.isNotEmpty
+                ? Column(
+                    children: myClasses
+                        .take(2)
+                        .map(
+                          (c) => ClassCard(
+                            id: c.id,
+                            className: c.className,
+                            teacherName: c.teacherName,
+                            rating: c.rating ?? 0.0,
+                            enrolledLearner: 100, // replace with real data
+                            imagePath:
+                                "assets/images/guitar.jpg", // wait for real image
+                          ),
+                        )
+                        .toList(),
+                  )
+                : const Text("No classes found for this teacher")
           else
-              const SizedBox(height: 135),
+            const SizedBox(height: 135),
         ],
       ),
     );

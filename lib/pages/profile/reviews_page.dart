@@ -90,75 +90,72 @@ class _ReviewPageState extends State<ReviewPage> {
     return "${user.firstName} ${user.lastName}".trim();
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Review"),
-      ),
+      appBar: AppBar(title: const Text("Review")),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : reviews.isEmpty
-              ? const Center(child: Text("No reviews yet"))
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: reviews.length,
-                  separatorBuilder: (_, __) => const Divider(),
-                  itemBuilder: (context, index) {
-                    final review = reviews[index];
-                    final reviewerName = getUserName(review);
+          ? const Center(child: Text("No reviews yet"))
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: reviews.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (context, index) {
+                final review = reviews[index];
+                final reviewerName = getUserName(review);
 
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const CircleAvatar(
-                          backgroundColor: Colors.greenAccent,
-                          radius: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: Colors.greenAccent,
+                      radius: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
+                              Text(
+                                reviewerName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    reviewerName,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
+                                  const Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                    size: 18,
                                   ),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.star,
-                                          color: Colors.amber, size: 18),
-                                      Text(
-                                        "${review.rating?.toStringAsFixed(1) ?? '0.0'}",
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                    ],
+                                  Text(
+                                    "${review.rating?.toStringAsFixed(1) ?? '0.0'}",
+                                    style: const TextStyle(fontSize: 14),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                review.comment ?? "",
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              const SizedBox(height: 6),
                             ],
                           ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
+                          const SizedBox(height: 4),
+                          Text(
+                            review.comment ?? "",
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
     );
   }
 }
-
-
