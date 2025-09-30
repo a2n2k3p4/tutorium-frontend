@@ -47,7 +47,7 @@ class TeacherHomePage extends StatelessWidget {
           ],
         ),
       ),
-      body: Center(child: const Text("์Nothing")),
+      body: Center(child: const Text("Nothing")),
     );
   }
 }

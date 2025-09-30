@@ -38,6 +38,8 @@ dependencies:
   flutter_dotenv: ^6.0.0
   # Needed by payment_screen.dart (launchUrl, LaunchMode)
   url_launcher: ^6.3.2
+  image_picker: ^1.1.2
+  # flutter_local_notifications: ^19.4.1
 
 dev_dependencies:
   flutter_test:
