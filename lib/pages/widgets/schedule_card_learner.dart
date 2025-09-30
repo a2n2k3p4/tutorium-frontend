@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tutorium_frontend/pages/search/class_enroll.dart';
 
 class ScheduleCard extends StatelessWidget {
   final String className;

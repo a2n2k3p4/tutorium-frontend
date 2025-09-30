@@ -97,9 +97,7 @@ class _NotificationPageState extends State<NotificationPage>
   }
 
   int getUnreadCount(String tabKey) {
-    return notificationData[tabKey]!
-        .where((n) => n["isRead"] == false)
-        .length;
+    return notificationData[tabKey]!.where((n) => n["isRead"] == false).length;
   }
 
   Widget buildNotificationCard(Map<String, dynamic> notification) {
@@ -158,7 +156,10 @@ class _NotificationPageState extends State<NotificationPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Notifications", style: TextStyle(fontWeight: FontWeight.bold),),
+        title: Text(
+          "Notifications",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         bottom: TabBar(
           controller: _tabController,
           tabs: [
@@ -170,7 +171,7 @@ class _NotificationPageState extends State<NotificationPage>
                   if (getUnreadCount("learner") > 0) ...[
                     const SizedBox(width: 6),
                     badge(getUnreadCount("learner")),
-                  ]
+                  ],
                 ],
               ),
             ),
@@ -182,7 +183,7 @@ class _NotificationPageState extends State<NotificationPage>
                   if (getUnreadCount("teacher") > 0) ...[
                     const SizedBox(width: 6),
                     badge(getUnreadCount("teacher")),
-                  ]
+                  ],
                 ],
               ),
             ),
@@ -194,7 +195,7 @@ class _NotificationPageState extends State<NotificationPage>
                   if (getUnreadCount("system") > 0) ...[
                     const SizedBox(width: 6),
                     badge(getUnreadCount("system")),
-                  ]
+                  ],
                 ],
               ),
             ),

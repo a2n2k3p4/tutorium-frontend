@@ -33,8 +33,10 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   http: ^1.5.0
-  cupertino: ^0.0.1
+  shared_preferences: ^2.5.3
+  # Needs v6 for loadFromString(...)
   flutter_dotenv: ^6.0.0
+  # Needed by payment_screen.dart (launchUrl, LaunchMode)
   url_launcher: ^6.3.2
   image_picker: ^1.1.2
   # flutter_local_notifications: ^19.4.1

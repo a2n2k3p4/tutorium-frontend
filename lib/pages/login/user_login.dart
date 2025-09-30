@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -102,24 +103,21 @@ class _UserLoginPageState extends State<UserLoginPage> {
       final password = _passwordController.text;
 
       try {
-        final loginResponse = await fetchUser(username, password);
+        // final loginResponse = await fetchUser(username, password);
+        final _ = await fetchUser(username, password);
 
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => MainNavPage()),
           (route) => false,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login successfully'),
-          ),
-        );
-
-        print("Token: ${loginResponse.token}"); // save this securely later
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Login successfully')));
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login failed')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Login failed')));
       }
     }
   }
@@ -129,10 +127,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: Colors.lightGreen,
-      appBar: AppBar(
-        title: const Text(""),
-        backgroundColor: Colors.lightGreen,
-      ),
+      appBar: AppBar(title: const Text(""), backgroundColor: Colors.lightGreen),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Form(
