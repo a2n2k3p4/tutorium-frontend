@@ -15,14 +15,14 @@ class _SearchPageState extends State<SearchPage> {
   List<dynamic> _filteredClasses = [];
   bool isLoading = false;
   String currentQuery = "";
-
+  
   List<String> selectedCategories = [];
   double? minRating;
   double? maxRating;
   bool isFilterActive = false;
 
   final List<Map<String, dynamic>> scheduleData = [
-    { 
+    {
       'classId': 1,
       'className': 'Guitar class by Jane',
       'enrolledLearner': 10,
@@ -34,7 +34,7 @@ class _SearchPageState extends State<SearchPage> {
       'rating': 4.5,
     },
     {
-      'classId': 1,
+      'classId': 2,
       'className': 'Piano class by Jane',
       'enrolledLearner': 10,
       'teacherName': 'Jane Frost',
@@ -45,7 +45,7 @@ class _SearchPageState extends State<SearchPage> {
       'rating': 4.0,
     },
     {
-      'classId': 1,
+      'classId': 3,
       'className': 'Piano class by Jane',
       'enrolledLearner': 10,
       'teacherName': 'Jane Frost',
@@ -72,8 +72,6 @@ class _SearchPageState extends State<SearchPage> {
         _filteredClasses = api.searchLocal(data, "");
       });
     } catch (_) {
-      // In tests, real HTTP is disabled and may throw/return 400.
-      // Swallow the error so the page renders normally.
       if (!mounted) return;
       setState(() {
         _allClasses = [];
@@ -130,6 +128,7 @@ class _SearchPageState extends State<SearchPage> {
   void _showFilterOptions() {
     final List<String> categories = [
       'All',
+      'General',
       'Mathematics',
       'Science',
       'Language',
@@ -263,7 +262,7 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                     ],
                   ),
-
+                  
                   SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
@@ -286,10 +285,10 @@ class _SearchPageState extends State<SearchPage> {
                       Navigator.pop(context);
                       _search(currentQuery);
                     },
-                    child: Text("Apply Filters"),
                     style: ElevatedButton.styleFrom(
                       minimumSize: Size(double.infinity, 50),
                     ),
+                    child: Text("Apply Filters"),
                   ),
                   SizedBox(height: 16),
                 ],
@@ -315,24 +314,28 @@ class _SearchPageState extends State<SearchPage> {
       minError = "Must be between 0-5";
       hasError = true;
     }
-
+    
     if (max != null && (max < 0 || max > 5)) {
       maxError = "Must be between 0-5";
       hasError = true;
     }
-
+    
     if (min != null && max != null && min > max) {
       minError = "Min cannot be greater than max";
       maxError = "Max cannot be less than min";
       hasError = true;
     }
-
+    
     return hasError ? RatingValidation(minError, maxError, true) : null;
   }
 
   @override
   Widget build(BuildContext context) {
     DateTime parseDate(String dateStr) => DateTime.parse(dateStr);
+    TimeOfDay parseTime(String timeStr) {
+      final parts = timeStr.split(':');
+      return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -385,16 +388,13 @@ class _SearchPageState extends State<SearchPage> {
                 children: [
                   if (selectedCategories.isNotEmpty)
                     Chip(
-                      label: Text(
-                        "Categories: ${selectedCategories.join(', ')}",
-                      ),
+                      label: Text("Categories: ${selectedCategories.join(', ')}"),
                       onDeleted: () {
                         setState(() {
                           selectedCategories.clear();
-                          isFilterActive =
-                              selectedCategories.isNotEmpty ||
-                              minRating != null ||
-                              maxRating != null;
+                          isFilterActive = selectedCategories.isNotEmpty || 
+                                         minRating != null || 
+                                         maxRating != null;
                           _search(currentQuery);
                         });
                       },
@@ -438,36 +438,54 @@ class _SearchPageState extends State<SearchPage> {
                   const Center(child: CircularProgressIndicator())
                 else if (currentQuery.isNotEmpty || isFilterActive)
                   _filteredClasses.isNotEmpty
-                    ? GridView.builder(
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(8),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                          childAspectRatio: 0.8,
-                        ),
-                        itemCount: _filteredClasses.length,
-                        itemBuilder: (context, index) {
-                          final item = _filteredClasses[index];
-                          return ScheduleCard_search(
-                            classId: item['classId'] ?? item['id'],
-                            className: item['class_name'] ?? item['className'] ?? 'Unnamed Class',
-                            enrolledLearner: item['enrolledLearner'] ?? 0,
-                            teacherName: item['teacher_name'] ?? item['teacherName'] ?? 'Unknown Teacher',
-                            date: DateTime.tryParse(item['date'] ?? '') ?? DateTime.now(),
-                            imagePath: item['imagePath'] ?? 'assets/images/default.jpg',
-                            rating: (item['rating'] is num) ? (item['rating'] as num).toDouble() : 4.5,
-                          );
-                        },
-                      )
-
-                    : const Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text("No results found"),
-                      )
-                else 
+                      ? GridView.builder(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(8),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: 0.8,
+                              ),
+                          itemCount: _filteredClasses.length,
+                          itemBuilder: (context, index) {
+                            final item = _filteredClasses[index];
+                            return ScheduleCard_search(
+                              classId: 
+                                  item['classId'] ??
+                                  item['id'],
+                              className:
+                                  item['class_name'] ??
+                                  item['className'] ??
+                                  'Unnamed Class',
+                              enrolledLearner: item['enrolledLearner'] ?? 0,
+                              teacherName:
+                                  item['teacher_name'] ??
+                                  item['teacherName'] ??
+                                  'Unknown Teacher',
+                              date:
+                                  DateTime.tryParse(item['date'] ?? '') ??
+                                  DateTime.now(),
+                              startTime: parseTime(
+                                item['startTime'] ?? '00:00',
+                              ),
+                              endTime: parseTime(item['endTime'] ?? '00:00'),
+                              imagePath:
+                                  item['imagePath'] ??
+                                  'assets/images/default.jpg',
+                              rating: (item['rating'] is num)
+                                  ? (item['rating'] as num).toDouble()
+                                  : 4.5,
+                            );
+                          },
+                        )
+                      : const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Text("No results found"),
+                        )
+                else
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -499,6 +517,8 @@ class _SearchPageState extends State<SearchPage> {
                                 enrolledLearner: item['enrolledLearner'],
                                 teacherName: item['teacherName'],
                                 date: parseDate(item['date']),
+                                startTime: parseTime(item['startTime']),
+                                endTime: parseTime(item['endTime']),
                                 imagePath: item['imagePath'],
                                 rating: item['rating'],
                               ),
@@ -534,6 +554,8 @@ class _SearchPageState extends State<SearchPage> {
                                 enrolledLearner: item['enrolledLearner'],
                                 teacherName: item['teacherName'],
                                 date: parseDate(item['date']),
+                                startTime: parseTime(item['startTime']),
+                                endTime: parseTime(item['endTime']),
                                 imagePath: item['imagePath'],
                                 rating: item['rating'],
                               ),
