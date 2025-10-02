@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  final baseUrl = dotenv.env["API_URL"];
+  final String baseUrl = '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}';
 
   Future<List<dynamic>> getAllClasses() async {
     final url = Uri.parse("$baseUrl/classes");
