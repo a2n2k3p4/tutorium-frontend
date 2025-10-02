@@ -118,6 +118,7 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
                         vertical: 8.0,
                       ),
                       child: ScheduleCard(
+                        classId: item['classId'],
                         className: item['className'],
                         enrolledLearner: item['enrolledLearner'],
                         teacherName: item['teacherName'],
