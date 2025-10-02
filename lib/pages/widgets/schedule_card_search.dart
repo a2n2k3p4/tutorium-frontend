@@ -7,19 +7,23 @@ class ScheduleCard_search extends StatelessWidget {
   final int enrolledLearner;
   final String teacherName;
   final DateTime date;
+  final TimeOfDay startTime;
+  final TimeOfDay endTime;
   final String imagePath;
   final double rating;
 
   const ScheduleCard_search({
-    Key? key,
+    super.key,
     required this.classId,
     required this.className,
     required this.enrolledLearner,
     required this.teacherName,
     required this.date,
+    required this.startTime,
+    required this.endTime,
     required this.imagePath,
     required this.rating,
-  }) : super(key: key);
+  });
 
   String formatTime24(TimeOfDay time) {
     final h = time.hour.toString().padLeft(2, '0');
@@ -36,9 +40,7 @@ class ScheduleCard_search extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => ClassEnrollPage(classId: classId, teacherName: teacherName,),
-            ),
+            MaterialPageRoute(builder: (context) => ClassEnrollPage(classId: classId, teacherName: teacherName,)),
           );
         },
         child: Card(
