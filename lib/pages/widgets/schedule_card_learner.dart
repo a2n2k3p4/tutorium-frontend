@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tutorium_frontend/pages/search/class_enroll.dart';
 
 class ScheduleCard extends StatelessWidget {
+  final int classId;
   final String className;
   final int enrolledLearner;
   final String teacherName;
@@ -11,7 +12,8 @@ class ScheduleCard extends StatelessWidget {
   final String imagePath;
 
   const ScheduleCard({
-    Key? key,
+    super.key,
+    required this.classId,
     required this.className,
     required this.enrolledLearner,
     required this.teacherName,
@@ -19,7 +21,7 @@ class ScheduleCard extends StatelessWidget {
     required this.startTime,
     required this.endTime,
     required this.imagePath,
-  }) : super(key: key);
+  });
 
   String formatTime24(TimeOfDay time) {
     final hour = time.hour.toString().padLeft(2, '0');
@@ -35,7 +37,7 @@ class ScheduleCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const ClassEnrollPage(classId: 1,teacherName: "mark",), //เดี๋ยวมาเปลี่ยนเป็นหน้า class ของ learner
+            builder: (context) => ClassEnrollPage(classId: classId, teacherName: teacherName,),
           ),
         );
       },
