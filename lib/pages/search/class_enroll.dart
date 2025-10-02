@@ -1,23 +1,95 @@
 import 'package:flutter/material.dart';
 import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
-
 class ClassEnrollPage extends StatefulWidget {
   final int classId;
   final String teacherName;
 
-  const ClassEnrollPage({super.key, required this.classId, required this.teacherName});
+  const ClassEnrollPage({
+    super.key,
+    required this.classId,
+    required this.teacherName,
+  });
 
   @override
   State<ClassEnrollPage> createState() => _ClassEnrollPageState();
 }
 
 class _ClassEnrollPageState extends State<ClassEnrollPage> {
+  ClassSession? selectedSession;
   ClassInfo? classInfo;
+  UserInfo? userInfo;
   List<ClassSession> sessions = [];
   bool isLoading = true;
-  ClassSession? selectedSession;
   bool showAllReviews = false;
   late Future<List<ClassSession>> futureSessions;
+
+  void _showEnrollConfirmationDialog(BuildContext context) {
+    if (selectedSession == null || userInfo == null) return;
+
+    final hasEnoughBalance = userInfo!.balance >= selectedSession!.price;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("Confirm Enrollment"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Class: ${classInfo?.name ?? "Unknown"}"),
+              Text("Session: ${selectedSession!.description}"),
+              Text("Price: \$${selectedSession!.price.toStringAsFixed(2)}"),
+              const SizedBox(height: 12),
+              if (hasEnoughBalance)
+                const Icon(Icons.check_circle, color: Colors.green, size: 48)
+              else
+                const Icon(Icons.cancel, color: Colors.red, size: 48),
+              const SizedBox(height: 8),
+              hasEnoughBalance
+                  ? Text("Your balance is enough to enroll ✅")
+                  : Text(
+                      "Not enough balance ❌\nYour balance: \$${userInfo!.balance}\nNeeded: \$${selectedSession!.price}",
+                      textAlign: TextAlign.center,
+                    ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Cancel"),
+            ),
+            if (hasEnoughBalance)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        "Successfully enrolled in ${selectedSession!.description} 🎉",
+                      ),
+                    ),
+                  );
+                  // 👉 Here you can call your backend enroll API
+                },
+                child: const Text("Confirm"),
+              )
+            else
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // 👉 Navigate to Balance / Wallet Page
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Redirecting to Balance Page...")),
+                  );
+                  // Navigator.push(context, MaterialPageRoute(builder: (_) => BalancePage()));
+                },
+                child: const Text("Add Balance"),
+              ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -31,10 +103,13 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
           await ClassSessionService().fetchClassSessions(widget.classId);
       final fetchedClassInfo =
           await ClassSessionService().fetchClassInfo(widget.classId);
+      final fetchedUserInfo =
+          await ClassSessionService().fetchUser();
 
       setState(() {
         sessions = fetchedSessions;
         classInfo = fetchedClassInfo;
+        userInfo = fetchedUserInfo;
         isLoading = false;
       });
     } catch (e) {
@@ -89,7 +164,8 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                             ),
 
                             const SizedBox(height: 16),
-                            Text(classInfo?.description ?? "No description available"),
+                            Text(classInfo?.description ??
+                                "No description available"),
 
                             const SizedBox(height: 16),
                             Row(
@@ -97,7 +173,8 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                               children: [
                                 Text(
                                   "👨‍🏫 Teacher: ${widget.teacherName}",
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
                                 ElevatedButton(
                                   onPressed: () {
@@ -115,13 +192,15 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                             ),
 
                             const SizedBox(height: 16),
-                            Text("📂 Category: ${classInfo?.category ?? "General"}"),
+                            Text(
+                                "📂 Category: ${classInfo?.category ?? "General"}"),
 
                             const Divider(height: 32),
 
                             const Text("📅 Select Session",
                                 style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
 
                             sessions.isNotEmpty
@@ -130,35 +209,63 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                                     hint: const Text("Choose a session"),
                                     value: selectedSession,
                                     items: sessions.map((session) {
-                                      String pad(int n) => n.toString().padLeft(2, '0');
+                                      String pad(int n) =>
+                                          n.toString().padLeft(2, '0');
 
                                       String formatDate(DateTime dt) {
-                                        final weekdays = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-                                        final months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                                        final weekdays = [
+                                          "Mon",
+                                          "Tue",
+                                          "Wed",
+                                          "Thu",
+                                          "Fri",
+                                          "Sat",
+                                          "Sun"
+                                        ];
+                                        final months = [
+                                          "Jan",
+                                          "Feb",
+                                          "Mar",
+                                          "Apr",
+                                          "May",
+                                          "Jun",
+                                          "Jul",
+                                          "Aug",
+                                          "Sep",
+                                          "Oct",
+                                          "Nov",
+                                          "Dec"
+                                        ];
                                         return "${weekdays[dt.weekday - 1]}, ${months[dt.month - 1]} ${dt.day}";
                                       }
 
                                       String formatTime(DateTime dt) {
-                                        final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+                                        final hour = dt.hour % 12 == 0
+                                            ? 12
+                                            : dt.hour % 12;
                                         final minute = pad(dt.minute);
-                                        final ampm = dt.hour >= 12 ? "PM" : "AM";
+                                        final ampm =
+                                            dt.hour >= 12 ? "PM" : "AM";
                                         return "$hour:$minute $ampm";
                                       }
 
-                                      final dateStr = formatDate(session.classStart);
-                                      final timeStr = "${formatTime(session.classStart)} – ${formatTime(session.classFinish)}";
-                                      final deadlineStr = formatDate(session.enrollmentDeadline);
+                                      final dateStr =
+                                          formatDate(session.classStart);
+                                      final timeStr =
+                                          "${formatTime(session.classStart)} – ${formatTime(session.classFinish)}";
+                                      final deadlineStr =
+                                          formatDate(session.enrollmentDeadline);
 
                                       return DropdownMenuItem(
                                         value: session,
                                         child: Text(
                                           "$dateStr • $timeStr • \$${session.price}  "
                                           "(Deadline: $deadlineStr)",
-                                          style: const TextStyle(fontSize: 14),
+                                          style:
+                                              const TextStyle(fontSize: 14),
                                         ),
                                       );
                                     }).toList(),
-
                                     onChanged: (value) {
                                       setState(() {
                                         selectedSession = value;
@@ -171,10 +278,12 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
 
                             const Text("⭐ Reviews",
                                 style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
                             ListTile(
-                              leading: const CircleAvatar(child: Icon(Icons.person)),
+                              leading: const CircleAvatar(
+                                  child: Icon(Icons.person)),
                               title: const Text("Alice"),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,7 +293,9 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                                     children: List.generate(
                                       5,
                                       (i) => Icon(
-                                        i < 4 ? Icons.star : Icons.star_border,
+                                        i < 4
+                                            ? Icons.star
+                                            : Icons.star_border,
                                         size: 16,
                                         color: Colors.amber,
                                       ),
@@ -199,7 +310,8 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                                   showAllReviews = !showAllReviews;
                                 });
                               },
-                              child: Text(showAllReviews ? "See Less" : "See More"),
+                              child: Text(
+                                  showAllReviews ? "See Less" : "See More"),
                             ),
 
                             const SizedBox(height: 80),
@@ -221,13 +333,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                 onPressed: selectedSession == null
                     ? null
                     : () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              "Enrolled in session ${selectedSession!.description}",
-                            ),
-                          ),
-                        );
+                        _showEnrollConfirmationDialog(context);
                       },
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
@@ -241,3 +347,4 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     );
   }
 }
+
