@@ -6,13 +6,17 @@ class SearchService {
   final String baseUrl = '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}';
 
   Future<List<dynamic>> getAllClasses() async {
-    final url = Uri.parse("$baseUrl/classes");
-    final response = await http.get(url);
+    try {
+      final url = Uri.parse("$baseUrl/classes");
+      final response = await http.get(url);
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception("Failed to load classes");
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as List<dynamic>;
+      } else {
+        return [];
+      }
+    } catch (e) {
+      return [];
     }
   }
 
@@ -40,51 +44,58 @@ class SearchService {
 
   Future<List<dynamic>> filterClasses({
     List<String>? categories,
-    num? minPrice,
-    num? maxPrice,
     num? minRating,
     num? maxRating,
   }) async {
-    final queryParams = <String, String>{};
+    try {
+      final uri = Uri.parse("$baseUrl/classes");
+      final response = await http.get(uri);
 
-    if (minPrice != null) queryParams["min_price"] = minPrice.toString();
-    if (maxPrice != null) queryParams["max_price"] = maxPrice.toString();
-    if (minRating != null) queryParams["min_rating"] = minRating.toString();
-    if (maxRating != null) queryParams["max_rating"] = maxRating.toString();
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body is List<dynamic>) {
+          List<dynamic> data = body;
 
-    if (categories != null && categories.isNotEmpty) {
-      final filteredCategories = categories.where((c) => c != "All").toList();
-      if (filteredCategories.isNotEmpty) {
-        for (var c in filteredCategories) {
-          queryParams["category"] = c;
+          if (minRating != null) {
+            data = data.where((c) {
+              final rating = (c["rating"] is num)
+                  ? (c["rating"] as num).toDouble()
+                  : 0.0;
+              return rating >= minRating;
+            }).toList();
+          }
+          if (maxRating != null) {
+            data = data.where((c) {
+              final rating = (c["rating"] is num)
+                  ? (c["rating"] as num).toDouble()
+                  : 0.0;
+              return rating <= maxRating;
+            }).toList();
+          }
+          if (categories != null &&
+              categories.isNotEmpty &&
+              !categories.contains("All")) {
+            data = data.where((c) {
+              final List<dynamic> classCategories = c["Categories"] ?? [];
+              return classCategories.any((cat) => categories.contains(cat));
+            }).toList();
+          }
+          data.sort((a, b) {
+            final ratingA = (a["rating"] is num)
+                ? (a["rating"] as num).toDouble()
+                : 0.0;
+            final ratingB = (b["rating"] is num)
+                ? (b["rating"] as num).toDouble()
+                : 0.0;
+            return ratingB.compareTo(ratingA);
+          });
+          return data;
         }
       }
-    }
-
-    final uri = Uri.parse(
-      "$baseUrl/classes",
-    ).replace(queryParameters: queryParams);
-
-    print("Filter request: $uri");
-
-    final response = await http.get(uri);
-
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-
-      data.sort((a, b) {
-        final ratingA = (a["rating"] is num)
-            ? (a["rating"] as num).toDouble()
-            : 0.0;
-        final ratingB = (b["rating"] is num)
-            ? (b["rating"] as num).toDouble()
-            : 0.0;
-        return ratingB.compareTo(ratingA);
-      });
-
-      return data;
-    } else {
-      throw Exception("Failed to filter classes (${response.statusCode})");
+      return [];
+    } catch (e) {
+      print("Error filtering classes: $e");
+      return [];
     }
   }
 }
