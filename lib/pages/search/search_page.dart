@@ -23,6 +23,7 @@ class _SearchPageState extends State<SearchPage> {
 
   final List<Map<String, dynamic>> scheduleData = [
     {
+      'classId': 1,
       'className': 'Guitar class by Jane',
       'enrolledLearner': 10,
       'teacherName': 'Jane Frost',
@@ -33,6 +34,7 @@ class _SearchPageState extends State<SearchPage> {
       'rating': 4.5,
     },
     {
+      'classId': 2,
       'className': 'Piano class by Jane',
       'enrolledLearner': 10,
       'teacherName': 'Jane Frost',
@@ -43,6 +45,7 @@ class _SearchPageState extends State<SearchPage> {
       'rating': 4.0,
     },
     {
+      'classId': 3,
       'className': 'Piano class by Jane',
       'enrolledLearner': 10,
       'teacherName': 'Jane Frost',
@@ -69,8 +72,6 @@ class _SearchPageState extends State<SearchPage> {
         _filteredClasses = api.searchLocal(data, "");
       });
     } catch (_) {
-      // In tests, real HTTP is disabled and may throw/return 400.
-      // Swallow the error so the page renders normally.
       if (!mounted) return;
       setState(() {
         _allClasses = [];
@@ -127,6 +128,7 @@ class _SearchPageState extends State<SearchPage> {
   void _showFilterOptions() {
     final List<String> categories = [
       'All',
+      'General',
       'Mathematics',
       'Science',
       'Language',
@@ -283,10 +285,10 @@ class _SearchPageState extends State<SearchPage> {
                       Navigator.pop(context);
                       _search(currentQuery);
                     },
-                    child: Text("Apply Filters"),
                     style: ElevatedButton.styleFrom(
                       minimumSize: Size(double.infinity, 50),
                     ),
+                    child: Text("Apply Filters"),
                   ),
                   SizedBox(height: 16),
                 ],
@@ -454,6 +456,7 @@ class _SearchPageState extends State<SearchPage> {
                           itemBuilder: (context, index) {
                             final item = _filteredClasses[index];
                             return ScheduleCard_search(
+                              classId: item['classId'] ?? item['id'],
                               className:
                                   item['class_name'] ??
                                   item['className'] ??
@@ -510,6 +513,7 @@ class _SearchPageState extends State<SearchPage> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 12),
                               child: ScheduleCard_search(
+                                classId: item['classId'],
                                 className: item['className'],
                                 enrolledLearner: item['enrolledLearner'],
                                 teacherName: item['teacherName'],
@@ -546,6 +550,7 @@ class _SearchPageState extends State<SearchPage> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 12),
                               child: ScheduleCard_search(
+                                classId: item['classId'],
                                 className: item['className'],
                                 enrolledLearner: item['enrolledLearner'],
                                 teacherName: item['teacherName'],
