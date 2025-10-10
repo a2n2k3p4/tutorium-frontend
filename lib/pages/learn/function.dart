@@ -99,6 +99,7 @@ JitsiMeetConferenceOptions createConferenceOptions({
           : [
               'camera',
               'chat',
+              'desktop',
               'microphone',
               'hangup',
               'raisehand',
@@ -124,7 +125,7 @@ JitsiMeetConferenceOptions createConferenceOptions({
       "tile-view.enabled": true,
       "raise-hand.enabled": true,
       "video-share.enabled": true,
-      "screen-sharing.enabled": isTeacher,
+      "screen-sharing.enabled": true,
       "toolbox.alwaysVisible": false,
       "video-quality.persist": true,
       "filmstrip.enabled": true,
@@ -372,7 +373,7 @@ Future<void> toggleVideo(bool mute) async {
   }
 }
 
-/// Toggle screen sharing (Teacher only)
+/// Toggle screen sharing
 ///
 /// Parameters:
 /// - [share]: true to start sharing, false to stop

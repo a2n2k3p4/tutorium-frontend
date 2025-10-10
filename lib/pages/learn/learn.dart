@@ -296,6 +296,7 @@ class _LearnPageState extends State<LearnPage>
               : [
                   'camera',
                   'chat',
+                  'desktop',
                   'microphone',
                   'hangup',
                   'raisehand',
@@ -321,7 +322,7 @@ class _LearnPageState extends State<LearnPage>
           "tile-view.enabled": true,
           "raise-hand.enabled": true,
           "video-share.enabled": true,
-          "screen-sharing.enabled": widget.isTeacher,
+          "screen-sharing.enabled": true,
         },
         userInfo: JitsiMeetUserInfo(
           displayName: _userName!, // ส่งชื่อผ่าน parameter
@@ -430,9 +431,8 @@ class _LearnPageState extends State<LearnPage>
     }
   }
 
-  // Toggle Screen Share (Teacher only)
+  // Toggle Screen Share
   Future<void> _toggleScreenShare() async {
-    if (!widget.isTeacher) return;
     try {
       await _jitsiMeet.toggleScreenShare(!_isScreenSharing);
       setState(() {
@@ -1234,16 +1234,15 @@ class _LearnPageState extends State<LearnPage>
                 isActive: !_isVideoMuted,
                 color: _isVideoMuted ? Colors.red : Colors.blue,
               ),
-              if (widget.isTeacher)
-                _buildControlButton(
-                  icon: _isScreenSharing
-                      ? Icons.stop_screen_share
-                      : Icons.screen_share,
-                  label: _isScreenSharing ? 'Stop Share' : 'Share',
-                  onPressed: _toggleScreenShare,
-                  isActive: _isScreenSharing,
-                  color: Colors.purple,
-                ),
+              _buildControlButton(
+                icon: _isScreenSharing
+                    ? Icons.stop_screen_share
+                    : Icons.screen_share,
+                label: _isScreenSharing ? 'Stop Share' : 'Share',
+                onPressed: _toggleScreenShare,
+                isActive: _isScreenSharing,
+                color: widget.isTeacher ? Colors.purple : Colors.blueGrey,
+              ),
               _buildControlButton(
                 icon: Icons.call_end,
                 label: 'Leave',
