@@ -1,6 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_card_search.dart';
 import 'package:tutorium_frontend/pages/widgets/search_service.dart';
+
+class _MaxValueTextInputFormatter extends TextInputFormatter {
+  _MaxValueTextInputFormatter(this.maxValue);
+
+  final double maxValue;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    if (text.isEmpty) {
+      return newValue;
+    }
+
+    if (text == '.') {
+      return newValue;
+    }
+
+    final value = double.tryParse(text);
+    if (value == null) {
+      return oldValue;
+    }
+
+    if (value > maxValue) {
+      return oldValue;
+    }
+
+    return newValue;
+  }
+}
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -275,6 +308,12 @@ class _SearchPageState extends State<SearchPage> {
                           keyboardType: TextInputType.numberWithOptions(
                             decimal: true,
                           ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9.]'),
+                            ),
+                            _MaxValueTextInputFormatter(5),
+                          ],
                           onChanged: (value) {
                             updateFilters(() {
                               _setMinRating(double.tryParse(value));
@@ -297,6 +336,12 @@ class _SearchPageState extends State<SearchPage> {
                           keyboardType: TextInputType.numberWithOptions(
                             decimal: true,
                           ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9.]'),
+                            ),
+                            _MaxValueTextInputFormatter(5),
+                          ],
                           onChanged: (value) {
                             updateFilters(() {
                               _setMaxRating(double.tryParse(value));
