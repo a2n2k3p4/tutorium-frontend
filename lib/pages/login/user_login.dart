@@ -12,7 +12,7 @@ class User {
   final String? lastName;
   final String? gender;
   final String? phoneNumber;
-  final double balance;
+  final int balance;
   final int banCount;
 
   User({
