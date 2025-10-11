@@ -159,13 +159,16 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _search(String query) async {
+    final normalizedQuery = query.trim();
+
     setState(() {
-      currentQuery = query;
+      currentQuery = normalizedQuery;
     });
 
     if (!isFilterActive) {
       setState(() {
-        _filteredClasses = api.searchLocal(_allClasses, query);
+        _filteredClasses =
+            api.searchLocal(_allClasses, normalizedQuery);
       });
       return;
     }
@@ -179,7 +182,7 @@ class _SearchPageState extends State<SearchPage> {
         maxRating: maxRating,
       );
 
-      final searched = api.searchLocal(data, query);
+      final searched = api.searchLocal(data, normalizedQuery);
       setState(() => _filteredClasses = searched);
     } catch (e) {
       ScaffoldMessenger.of(
@@ -191,17 +194,29 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _onSearchChanged(String query) {
+    final normalizedQuery = query.trim();
+    final isWhitespaceOnly = normalizedQuery.isEmpty && query.isNotEmpty;
+
+    if (isWhitespaceOnly) {
+      setState(() {
+        currentQuery = '';
+        _filteredClasses = [];
+      });
+      return;
+    }
+
     setState(() {
-      currentQuery = query;
+      currentQuery = normalizedQuery;
     });
 
-    if (query.isEmpty && !isFilterActive) {
+    if (normalizedQuery.isEmpty && !isFilterActive) {
       setState(() {
         _filteredClasses = api.searchLocal(_allClasses, "");
       });
       return;
     }
-    _search(query);
+
+    _search(normalizedQuery);
   }
 
   void _showFilterOptions() {
