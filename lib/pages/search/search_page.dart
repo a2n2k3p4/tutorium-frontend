@@ -167,8 +167,7 @@ class _SearchPageState extends State<SearchPage> {
 
     if (!isFilterActive) {
       setState(() {
-        _filteredClasses =
-            api.searchLocal(_allClasses, normalizedQuery);
+        _filteredClasses = api.searchLocal(_allClasses, normalizedQuery);
       });
       return;
     }
@@ -250,6 +249,7 @@ class _SearchPageState extends State<SearchPage> {
               });
               setState(() {});
             }
+
             return Container(
               padding: EdgeInsets.all(16),
               child: Column(
@@ -495,9 +495,7 @@ class _SearchPageState extends State<SearchPage> {
                 children: [
                   if (_categoryFilters.isNotEmpty)
                     Chip(
-                      label: Text(
-                        "Categories: ${_categoryFilters.join(', ')}",
-                      ),
+                      label: Text("Categories: ${_categoryFilters.join(', ')}"),
                       onDeleted: () {
                         setState(() {
                           selectedCategories.clear();
