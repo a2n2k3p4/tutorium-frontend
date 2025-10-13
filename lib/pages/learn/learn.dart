@@ -272,11 +272,12 @@ class _LearnPageState extends State<LearnPage>
           "subject": widget.className,
 
           // Role-based permissions in config
-          "disableRemoteMute": !widget.isTeacher, // Learner ไม่สามารถ mute คนอื่นได้
-          "disableModeratorIndicator": !widget.isTeacher, // ซ่อน moderator indicator สำหรับ Learner
+          "disableRemoteMute":
+              !widget.isTeacher, // Learner ไม่สามารถ mute คนอื่นได้
+          "disableModeratorIndicator":
+              !widget.isTeacher, // ซ่อน moderator indicator สำหรับ Learner
           "hideConferenceSubject": false, // แสดงชื่อคลาสเสมอ
           "hideConferenceTimer": false, // แสดงเวลาเสมอ
-
           // Disable invite functions for Learner
           "disableInviteFunctions": !widget.isTeacher,
 
@@ -288,10 +289,12 @@ class _LearnPageState extends State<LearnPage>
           // Role-based permissions: Teacher has full control, Learner is restricted
 
           // People & Participants
-          FeatureFlags.addPeopleEnabled: widget.isTeacher, // เชิญคนเข้าห้อง (Teacher only)
-          FeatureFlags.inviteEnabled: widget.isTeacher, // ส่งคำเชิญ (Teacher only)
-          FeatureFlags.kickOutEnabled: widget.isTeacher, // เตะคนออกจากห้อง (Teacher only)
-
+          FeatureFlags.addPeopleEnabled:
+              widget.isTeacher, // เชิญคนเข้าห้อง (Teacher only)
+          FeatureFlags.inviteEnabled:
+              widget.isTeacher, // ส่งคำเชิญ (Teacher only)
+          FeatureFlags.kickOutEnabled:
+              widget.isTeacher, // เตะคนออกจากห้อง (Teacher only)
           // Video & Audio Quality
           FeatureFlags.resolution: FeatureFlagVideoResolutions.resolution720p,
           FeatureFlags.audioFocusDisabled: false,
@@ -338,11 +341,12 @@ class _LearnPageState extends State<LearnPage>
           FeatureFlags.carModeEnabled: true,
 
           // Security & Admin (Teacher only - Full control)
-          FeatureFlags.securityOptionEnabled: widget.isTeacher, // Security menu (Teacher only)
+          FeatureFlags.securityOptionEnabled:
+              widget.isTeacher, // Security menu (Teacher only)
           FeatureFlags.lobbyModeEnabled: false, // ไม่ใช้ lobby mode
           FeatureFlags.meetingPasswordEnabled: false, // ไม่ใช้รหัสผ่าน
-          FeatureFlags.replaceParticipant: widget.isTeacher, // แทนที่ participant (Teacher only)
-
+          FeatureFlags.replaceParticipant:
+              widget.isTeacher, // แทนที่ participant (Teacher only)
           // Pre-join & Welcome
           FeatureFlags.welcomePageEnabled: false,
           FeatureFlags.preJoinPageEnabled: false,
@@ -358,8 +362,7 @@ class _LearnPageState extends State<LearnPage>
         userInfo: JitsiMeetUserInfo(
           displayName: _userName!,
           email: _userEmail!,
-          avatar:
-              "https://api.dicebear.com/7.x/avataaars/png?seed=$_userName",
+          avatar: "https://api.dicebear.com/7.x/avataaars/png?seed=$_userName",
         ),
       );
 
@@ -1228,10 +1231,7 @@ class _LearnPageState extends State<LearnPage>
               icon: const Icon(Icons.call_end_rounded, size: 24),
               label: const Text(
                 'ออกจากห้องเรียน',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
           ],
