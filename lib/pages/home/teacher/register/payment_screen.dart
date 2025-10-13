@@ -14,7 +14,8 @@ class PaymentScreen extends StatefulWidget {
   State<PaymentScreen> createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProviderStateMixin {
+class _PaymentScreenState extends State<PaymentScreen>
+    with SingleTickerProviderStateMixin {
   late final String backendUrl;
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _amountController = TextEditingController();
@@ -52,7 +53,11 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
 
   // --- helpers ---
 
-  Future<void> _setStatus(String msg, {bool loading = false, bool success = false}) async {
+  Future<void> _setStatus(
+    String msg, {
+    bool loading = false,
+    bool success = false,
+  }) async {
     if (!mounted) return;
     setState(() {
       _message = msg;
@@ -202,10 +207,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
       appBar: AppBar(
         title: const Text(
           'เติมเงิน',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 20,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
         ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
@@ -390,7 +392,8 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                           runSpacing: 8,
                           children: [50, 100, 200, 500, 1000].map((amount) {
                             return InkWell(
-                              onTap: () => _amountController.text = amount.toString(),
+                              onTap: () =>
+                                  _amountController.text = amount.toString(),
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -500,9 +503,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          _paymentSuccess
-                              ? 'ชำระเงินสำเร็จ!'
-                              : 'รอการชำระเงิน',
+                          _paymentSuccess ? 'ชำระเงินสำเร็จ!' : 'รอการชำระเงิน',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -525,7 +526,9 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed: _isLoading ? null : _checkPaymentStatus,
+                              onPressed: _isLoading
+                                  ? null
+                                  : _checkPaymentStatus,
                               icon: const Icon(Icons.refresh_rounded, size: 20),
                               label: const Text(
                                 'ตรวจสอบสถานะ',
@@ -535,7 +538,9 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                                 ),
                               ),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 foregroundColor: const Color(0xFF667eea),
                                 side: const BorderSide(
                                   color: Color(0xFF667eea),
