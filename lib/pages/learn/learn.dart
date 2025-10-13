@@ -219,7 +219,8 @@ class _LearnPageState extends State<LearnPage>
     readyToClose: () {
       debugPrint('🚪 Ready to close');
       if (mounted) {
-        Navigator.of(context).pop();
+        // Navigate back to home page
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     },
   );
@@ -269,53 +270,90 @@ class _LearnPageState extends State<LearnPage>
           "startWithAudioMuted": false,
           "startWithVideoMuted": false,
           "subject": widget.className,
+
+          // Role-based permissions in config
+          "disableRemoteMute": !widget.isTeacher, // Learner ไม่สามารถ mute คนอื่นได้
+          "disableModeratorIndicator": !widget.isTeacher, // ซ่อน moderator indicator สำหรับ Learner
+          "hideConferenceSubject": false, // แสดงชื่อคลาสเสมอ
+          "hideConferenceTimer": false, // แสดงเวลาเสมอ
+
+          // Disable invite functions for Learner
+          "disableInviteFunctions": !widget.isTeacher,
+
+          // Only Teacher can end meeting for everyone
+          "enableClosePage": widget.isTeacher, // Teacher สามารถปิดห้องได้
         },
         featureFlags: {
           // Enable ALL feature flags for full Jitsi experience
-          FeatureFlags.addPeopleEnabled: true,
-          FeatureFlags.welcomePageEnabled: false,
-          FeatureFlags.preJoinPageEnabled: false,
-          FeatureFlags.unsafeRoomWarningEnabled: false,
+          // Role-based permissions: Teacher has full control, Learner is restricted
+
+          // People & Participants
+          FeatureFlags.addPeopleEnabled: widget.isTeacher, // เชิญคนเข้าห้อง (Teacher only)
+          FeatureFlags.inviteEnabled: widget.isTeacher, // ส่งคำเชิญ (Teacher only)
+          FeatureFlags.kickOutEnabled: widget.isTeacher, // เตะคนออกจากห้อง (Teacher only)
+
+          // Video & Audio Quality
           FeatureFlags.resolution: FeatureFlagVideoResolutions.resolution720p,
           FeatureFlags.audioFocusDisabled: false,
           FeatureFlags.audioMuteButtonEnabled: true,
           FeatureFlags.audioOnlyButtonEnabled: true,
+          FeatureFlags.videoMuteEnabled: true,
+          FeatureFlags.fullScreenEnabled: true,
+
+          // Screen Sharing
+          FeatureFlags.androidScreenSharingEnabled: true,
+          FeatureFlags.iosScreenSharingEnabled: true,
+          FeatureFlags.videoShareEnabled: true,
+          FeatureFlags.pipEnabled: true,
+          FeatureFlags.pipWhileScreenSharingEnabled: true,
+
+          // Communication Features (Available to all)
+          FeatureFlags.chatEnabled: true,
+          FeatureFlags.raiseHandEnabled: true,
+          FeatureFlags.reactionsEnabled: true,
+          FeatureFlags.closeCaptionsEnabled: true,
+
+          // Recording & Streaming (Teacher only - Full control)
+          FeatureFlags.recordingEnabled: widget.isTeacher,
+          FeatureFlags.iosRecordingEnabled: widget.isTeacher,
+          FeatureFlags.liveStreamingEnabled: widget.isTeacher,
+
+          // UI & Layout
+          FeatureFlags.filmstripEnabled: true,
+          FeatureFlags.tileViewEnabled: true,
+          FeatureFlags.toolboxEnabled: true,
+          FeatureFlags.toolboxAlwaysVisible: false,
+          FeatureFlags.overflowMenuEnabled: true,
+
+          // Settings & Info
+          FeatureFlags.settingsEnabled: true,
+          FeatureFlags.helpButtonEnabled: true,
+          FeatureFlags.speakerStatsEnabled: true,
+          FeatureFlags.conferenceTimerEnabled: true,
+          FeatureFlags.meetingNameEnabled: true,
+
+          // Calendar & Integration
           FeatureFlags.calenderEnabled: true,
           FeatureFlags.callIntegrationEnabled: true,
           FeatureFlags.carModeEnabled: true,
-          FeatureFlags.closeCaptionsEnabled: true,
-          FeatureFlags.conferenceTimerEnabled: true,
-          FeatureFlags.chatEnabled: true,
-          FeatureFlags.filmstripEnabled: true,
-          FeatureFlags.fullScreenEnabled: true,
-          FeatureFlags.helpButtonEnabled: true,
-          FeatureFlags.inviteEnabled: true,
-          FeatureFlags.androidScreenSharingEnabled: true,
-          FeatureFlags.speakerStatsEnabled: true,
-          FeatureFlags.kickOutEnabled: widget.isTeacher,
-          FeatureFlags.liveStreamingEnabled: widget.isTeacher,
-          FeatureFlags.lobbyModeEnabled: false,
-          FeatureFlags.meetingNameEnabled: true,
-          FeatureFlags.meetingPasswordEnabled: false,
-          FeatureFlags.notificationEnabled: true,
-          FeatureFlags.overflowMenuEnabled: true,
-          FeatureFlags.pipEnabled: true,
-          FeatureFlags.pipWhileScreenSharingEnabled: true,
+
+          // Security & Admin (Teacher only - Full control)
+          FeatureFlags.securityOptionEnabled: widget.isTeacher, // Security menu (Teacher only)
+          FeatureFlags.lobbyModeEnabled: false, // ไม่ใช้ lobby mode
+          FeatureFlags.meetingPasswordEnabled: false, // ไม่ใช้รหัสผ่าน
+          FeatureFlags.replaceParticipant: widget.isTeacher, // แทนที่ participant (Teacher only)
+
+          // Pre-join & Welcome
+          FeatureFlags.welcomePageEnabled: false,
+          FeatureFlags.preJoinPageEnabled: false,
           FeatureFlags.preJoinPageHideDisplayName: false,
-          FeatureFlags.raiseHandEnabled: true,
-          FeatureFlags.reactionsEnabled: true,
-          FeatureFlags.recordingEnabled: widget.isTeacher,
-          FeatureFlags.replaceParticipant: true,
-          FeatureFlags.securityOptionEnabled: widget.isTeacher,
-          FeatureFlags.serverUrlChangeEnabled: false,
-          FeatureFlags.settingsEnabled: true,
-          FeatureFlags.tileViewEnabled: true,
-          FeatureFlags.videoMuteEnabled: true,
-          FeatureFlags.videoShareEnabled: true,
-          FeatureFlags.toolboxEnabled: true,
-          FeatureFlags.iosRecordingEnabled: widget.isTeacher,
-          FeatureFlags.iosScreenSharingEnabled: true,
-          FeatureFlags.toolboxAlwaysVisible: false,
+          FeatureFlags.unsafeRoomWarningEnabled: false,
+
+          // Notifications
+          FeatureFlags.notificationEnabled: true,
+
+          // Server Settings
+          FeatureFlags.serverUrlChangeEnabled: false, // ไม่ให้เปลี่ยน server
         },
         userInfo: JitsiMeetUserInfo(
           displayName: _userName!,
@@ -394,7 +432,8 @@ class _LearnPageState extends State<LearnPage>
           _isInConference = false;
         });
         if (mounted) {
-          Navigator.of(context).pop();
+          // Navigate back to home page
+          Navigator.of(context).popUntil((route) => route.isFirst);
         }
       } catch (e) {
         _showErrorDialog('ไม่สามารถออกจากห้องได้: $e');
