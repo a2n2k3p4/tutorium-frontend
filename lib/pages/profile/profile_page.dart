@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dart';
 import 'package:tutorium_frontend/pages/profile/allClasses_page.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
 
@@ -307,10 +308,25 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: const TextStyle(fontSize: 15),
                   ),
                   const SizedBox(width: 10),
-                  const Icon(
-                    Icons.add_circle_rounded,
-                    color: Colors.grey,
-                    size: 25,
+                  GestureDetector(
+                    onTap: () async {
+                      if (isLoading || user == null) return;
+                      final result = await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => PaymentScreen(userId: user!.id),
+                        ),
+                      );
+
+                      // Refresh user data if payment was successful
+                      if (result == true) {
+                        await fetchUser();
+                      }
+                    },
+                    child: const Icon(
+                      Icons.add_circle_rounded,
+                      color: Colors.grey,
+                      size: 25,
+                    ),
                   ),
                 ],
               ),
