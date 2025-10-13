@@ -238,7 +238,7 @@ class _LearnPageState extends State<LearnPage>
     _sessionTimer = null;
   }
 
-  // Join Conference - Direct join without prejoin
+  // Join Conference - Full Jitsi SDK with ALL features enabled
   Future<void> _joinConference() async {
     if (_userName == null || _userEmail == null) {
       _showErrorDialog('กรุณาตรวจสอบข้อมูลผู้ใช้');
@@ -269,75 +269,70 @@ class _LearnPageState extends State<LearnPage>
           "startWithAudioMuted": false,
           "startWithVideoMuted": false,
           "subject": widget.className,
-          "hideConferenceTimer": false,
-          "disableInviteFunctions": !widget.isTeacher,
-          "prejoinPageEnabled": false,
-          "requireDisplayName": false,
-          "enableWelcomePage": false,
-          "startScreenSharing": false,
-          "startAudioOnly": false,
-          "toolbarButtons": widget.isTeacher
-              ? [
-                  'camera',
-                  'chat',
-                  'desktop',
-                  'filmstrip',
-                  'fullscreen',
-                  'hangup',
-                  'microphone',
-                  'participants-pane',
-                  'raisehand',
-                  'recording',
-                  'settings',
-                  'tileview',
-                  'toggle-camera',
-                  'videoquality',
-                ]
-              : [
-                  'camera',
-                  'chat',
-                  'desktop',
-                  'microphone',
-                  'hangup',
-                  'raisehand',
-                  'tileview',
-                  'settings',
-                ],
         },
         featureFlags: {
-          "unsaferoomwarning.enabled": false,
-          "welcomepage.enabled": false,
-          "prejoinpage.enabled": false, // ปิด prejoin
-          "security-options.enabled": false, // ปิด security options
-          "lobby-mode.enabled": false, // ปิด lobby mode
-          "chat.enabled": true,
-          "live-streaming.enabled": widget.isTeacher,
-          "recording.enabled": widget.isTeacher,
-          "calendar.enabled": false,
-          "call-integration.enabled": false,
-          "meeting-name.enabled": true,
-          "meeting-password.enabled": false, // ปิด password
-          "pip.enabled": true,
-          "kick-out.enabled": widget.isTeacher,
-          "tile-view.enabled": true,
-          "raise-hand.enabled": true,
-          "video-share.enabled": true,
-          "screen-sharing.enabled": true,
+          // Enable ALL feature flags for full Jitsi experience
+          FeatureFlags.addPeopleEnabled: true,
+          FeatureFlags.welcomePageEnabled: false,
+          FeatureFlags.preJoinPageEnabled: false,
+          FeatureFlags.unsafeRoomWarningEnabled: false,
+          FeatureFlags.resolution: FeatureFlagVideoResolutions.resolution720p,
+          FeatureFlags.audioFocusDisabled: false,
+          FeatureFlags.audioMuteButtonEnabled: true,
+          FeatureFlags.audioOnlyButtonEnabled: true,
+          FeatureFlags.calenderEnabled: true,
+          FeatureFlags.callIntegrationEnabled: true,
+          FeatureFlags.carModeEnabled: true,
+          FeatureFlags.closeCaptionsEnabled: true,
+          FeatureFlags.conferenceTimerEnabled: true,
+          FeatureFlags.chatEnabled: true,
+          FeatureFlags.filmstripEnabled: true,
+          FeatureFlags.fullScreenEnabled: true,
+          FeatureFlags.helpButtonEnabled: true,
+          FeatureFlags.inviteEnabled: true,
+          FeatureFlags.androidScreenSharingEnabled: true,
+          FeatureFlags.speakerStatsEnabled: true,
+          FeatureFlags.kickOutEnabled: widget.isTeacher,
+          FeatureFlags.liveStreamingEnabled: widget.isTeacher,
+          FeatureFlags.lobbyModeEnabled: false,
+          FeatureFlags.meetingNameEnabled: true,
+          FeatureFlags.meetingPasswordEnabled: false,
+          FeatureFlags.notificationEnabled: true,
+          FeatureFlags.overflowMenuEnabled: true,
+          FeatureFlags.pipEnabled: true,
+          FeatureFlags.pipWhileScreenSharingEnabled: true,
+          FeatureFlags.preJoinPageHideDisplayName: false,
+          FeatureFlags.raiseHandEnabled: true,
+          FeatureFlags.reactionsEnabled: true,
+          FeatureFlags.recordingEnabled: widget.isTeacher,
+          FeatureFlags.replaceParticipant: true,
+          FeatureFlags.securityOptionEnabled: widget.isTeacher,
+          FeatureFlags.serverUrlChangeEnabled: false,
+          FeatureFlags.settingsEnabled: true,
+          FeatureFlags.tileViewEnabled: true,
+          FeatureFlags.videoMuteEnabled: true,
+          FeatureFlags.videoShareEnabled: true,
+          FeatureFlags.toolboxEnabled: true,
+          FeatureFlags.iosRecordingEnabled: widget.isTeacher,
+          FeatureFlags.iosScreenSharingEnabled: true,
+          FeatureFlags.toolboxAlwaysVisible: false,
         },
         userInfo: JitsiMeetUserInfo(
-          displayName: _userName!, // ส่งชื่อผ่าน parameter
-          email: _userEmail!, // ส่ง email ผ่าน parameter
-          avatar: widget.isTeacher
-              ? "https://api.dicebear.com/7.x/avataaars/png?seed=$_userName"
-              : "https://api.dicebear.com/7.x/avataaars/png?seed=$_userName",
+          displayName: _userName!,
+          email: _userEmail!,
+          avatar:
+              "https://api.dicebear.com/7.x/avataaars/png?seed=$_userName",
         ),
       );
 
-      // Join conference and listen to events
+      // Join conference with event listener
       await _jitsiMeet.join(options, _eventListener);
 
-      debugPrint("you are you in root");
+      debugPrint('🚀 Joined Jitsi conference successfully');
       debugPrint('👤 Display Name: $_userName');
+      debugPrint('📧 Email: $_userEmail');
+      debugPrint('🎬 Room: ${meetingConfig.roomName}');
+      debugPrint('🌐 Server: ${meetingConfig.serverUrl}');
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -402,44 +397,8 @@ class _LearnPageState extends State<LearnPage>
           Navigator.of(context).pop();
         }
       } catch (e) {
-        _showErrorDialog('Failed to leave conference: $e');
+        _showErrorDialog('ไม่สามารถออกจากห้องได้: $e');
       }
-    }
-  }
-
-  // Toggle Audio
-  Future<void> _toggleAudio() async {
-    try {
-      await _jitsiMeet.setAudioMuted(!_isAudioMuted);
-      setState(() {
-        _isAudioMuted = !_isAudioMuted;
-      });
-    } catch (e) {
-      _showErrorDialog('Failed to toggle audio: $e');
-    }
-  }
-
-  // Toggle Video
-  Future<void> _toggleVideo() async {
-    try {
-      await _jitsiMeet.setVideoMuted(!_isVideoMuted);
-      setState(() {
-        _isVideoMuted = !_isVideoMuted;
-      });
-    } catch (e) {
-      _showErrorDialog('Failed to toggle video: $e');
-    }
-  }
-
-  // Toggle Screen Share
-  Future<void> _toggleScreenShare() async {
-    try {
-      await _jitsiMeet.toggleScreenShare(!_isScreenSharing);
-      setState(() {
-        _isScreenSharing = !_isScreenSharing;
-      });
-    } catch (e) {
-      _showErrorDialog('Failed to toggle screen share: $e');
     }
   }
 
@@ -594,6 +553,8 @@ class _LearnPageState extends State<LearnPage>
 
   @override
   Widget build(BuildContext context) {
+    // When in conference, Jitsi SDK takes over the entire screen
+    // We only show pre-join and loading screens
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -607,7 +568,7 @@ class _LearnPageState extends State<LearnPage>
           child: _isLoading
               ? _buildLoadingView()
               : _isInConference
-              ? _buildConferenceView()
+              ? _buildInConferenceView()
               : _buildPreJoinView(),
         ),
       ),
@@ -1102,198 +1063,170 @@ class _LearnPageState extends State<LearnPage>
     );
   }
 
-  Widget _buildConferenceView() {
-    return Column(
-      children: [
-        // Top Bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.className,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 16,
-                          color: Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatDuration(_sessionDuration),
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Icon(
-                          Icons.people,
-                          size: 16,
-                          color: Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${_participants.length + 1}',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                onPressed: _leaveConference,
-                icon: const Icon(Icons.close),
-                color: Colors.red,
-                tooltip: 'Leave Class',
-              ),
-            ],
-          ),
+  // Simple in-conference view - Jitsi SDK takes over the screen
+  Widget _buildInConferenceView() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.green.shade600, Colors.teal.shade600],
         ),
-
-        // Conference Placeholder
-        Expanded(
-          child: Container(
-            color: Colors.black87,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.videocam,
-                    size: 100,
-                    color: Colors.white.withValues(alpha: 0.3),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Success Icon
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 30,
+                    spreadRadius: 5,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Conference is running in Jitsi Meet window',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 16,
-                    ),
+                ],
+              ),
+              child: Icon(
+                Icons.check_circle_rounded,
+                size: 80,
+                color: Colors.green.shade600,
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // Conference Active Message
+            Text(
+              'กำลังอยู่ในห้องเรียน',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 10,
                   ),
                 ],
               ),
             ),
-          ),
-        ),
+            const SizedBox(height: 12),
 
-        // Control Bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
+            // Class Info
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(20),
               ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildControlButton(
-                icon: _isAudioMuted ? Icons.mic_off : Icons.mic,
-                label: _isAudioMuted ? 'Unmute' : 'Mute',
-                onPressed: _toggleAudio,
-                isActive: !_isAudioMuted,
-                color: _isAudioMuted ? Colors.red : Colors.blue,
+              child: Text(
+                widget.className,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
               ),
-              _buildControlButton(
-                icon: _isVideoMuted ? Icons.videocam_off : Icons.videocam,
-                label: _isVideoMuted ? 'Start Video' : 'Stop Video',
-                onPressed: _toggleVideo,
-                isActive: !_isVideoMuted,
-                color: _isVideoMuted ? Colors.red : Colors.blue,
+            ),
+            const SizedBox(height: 24),
+
+            // Session Info
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildInfoChip(
+                  Icons.access_time_rounded,
+                  _formatDuration(_sessionDuration),
+                ),
+                const SizedBox(width: 16),
+                _buildInfoChip(
+                  Icons.people_rounded,
+                  '${_participants.length + 1} คน',
+                ),
+              ],
+            ),
+            const SizedBox(height: 48),
+
+            // Info Text
+            Text(
+              'Jitsi Meet กำลังทำงานในหน้าต่างแยก',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white.withValues(alpha: 0.9),
+                fontWeight: FontWeight.w500,
               ),
-              _buildControlButton(
-                icon: _isScreenSharing
-                    ? Icons.stop_screen_share
-                    : Icons.screen_share,
-                label: _isScreenSharing ? 'Stop Share' : 'Share',
-                onPressed: _toggleScreenShare,
-                isActive: _isScreenSharing,
-                color: widget.isTeacher ? Colors.purple : Colors.blueGrey,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'การประชุมวิดีโอทำงานอยู่เบื้องหลัง',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white.withValues(alpha: 0.8),
               ),
-              _buildControlButton(
-                icon: Icons.call_end,
-                label: 'Leave',
-                onPressed: _leaveConference,
-                isActive: false,
-                color: Colors.red,
+            ),
+            const SizedBox(height: 48),
+
+            // Leave Button
+            ElevatedButton.icon(
+              onPressed: _leaveConference,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.red.shade700,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 8,
               ),
-            ],
-          ),
+              icon: const Icon(Icons.call_end_rounded, size: 24),
+              label: const Text(
+                'ออกจากห้องเรียน',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildControlButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    required bool isActive,
-    required Color color,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Material(
-          color: isActive ? color : Colors.grey.shade300,
-          borderRadius: BorderRadius.circular(50),
-          elevation: isActive ? 4 : 0,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(50),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              child: Icon(
-                icon,
-                color: isActive ? Colors.white : Colors.grey.shade600,
-                size: 28,
-              ),
+  Widget _buildInfoChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade700,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
