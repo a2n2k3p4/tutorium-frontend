@@ -1,8 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dart';
 import 'package:tutorium_frontend/pages/profile/allClasses_page.dart';
@@ -46,6 +47,7 @@ class _ProfilePageState extends State<ProfilePage> {
   List<Class> allClasses = [];
   List<Class> myClasses = [];
   bool isLoading = true;
+  bool isUploadingImage = false;
 
   @override
   void initState() {
@@ -81,7 +83,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       await fetchClasses(fetchedUser);
     } catch (e) {
-      print("Error fetching user: $e");
+      debugPrint("Error fetching user: $e");
       if (!mounted) return;
       setState(() {
         isLoading = false;
@@ -122,23 +124,64 @@ class _ProfilePageState extends State<ProfilePage> {
         throw Exception("Failed to load classes");
       }
     } catch (e) {
-      print("Error fetching classes: $e");
+      debugPrint("Error fetching classes: $e");
     }
   }
 
   Future<String?> pickImageAndConvertToBase64() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    try {
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile != null) {
-      final bytes = await File(pickedFile.path).readAsBytes();
-      return base64Encode(bytes);
+      if (pickedFile == null) {
+        return null;
+      }
+
+      final fileName = pickedFile.name.toLowerCase();
+      const allowedExtensions = {'jpg', 'jpeg', 'png'};
+      final extension = fileName.split('.').last;
+
+      if (!allowedExtensions.contains(extension)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('รองรับเฉพาะไฟล์ .jpg และ .png เท่านั้น')),
+          );
+        }
+        return null;
+      }
+
+      final bytes = await pickedFile.readAsBytes();
+      final base64String = base64Encode(bytes);
+      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      return 'data:$mimeType;base64,$base64String';
+    } on PlatformException catch (e) {
+      debugPrint('Image picker error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่สามารถเปิดคลังรูปภาพได้')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Unexpected image picker error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เกิดข้อผิดพลาดในการเลือกรูป')),
+        );
+      }
     }
     return null;
   }
 
   Future<void> uploadProfilePicture(int userId, String base64Image) async {
     if (user == null) return;
+
+    if (mounted) {
+      setState(() {
+        isUploadingImage = true;
+      });
+    } else {
+      isUploadingImage = true;
+    }
 
     try {
       final updatedUser = await user_api.User.update(
@@ -163,10 +206,37 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() {
           user = updatedUser;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile picture updated')),
+        );
+        // Refresh user data to get the latest profile picture
+        await fetchUser(forceRefresh: true);
       }
-      print("Upload success");
+      debugPrint("Upload success");
     } catch (e) {
-      print("Upload failed: $e");
+      debugPrint("Upload failed: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update profile picture')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isUploadingImage = false;
+        });
+      } else {
+        isUploadingImage = false;
+      }
+    }
+  }
+
+  Future<void> _onProfileImageTap() async {
+    if (isLoading || user == null || isUploadingImage) return;
+
+    final base64Image = await pickImageAndConvertToBase64();
+    if (base64Image != null) {
+      await uploadProfilePicture(user!.id, base64Image);
     }
   }
 
@@ -176,7 +246,15 @@ class _ProfilePageState extends State<ProfilePage> {
     if (value.startsWith("http")) {
       return NetworkImage(value);
     } else {
-      return MemoryImage(base64Decode(value));
+      try {
+        final payload = value.startsWith('data:image')
+            ? value.substring(value.indexOf(',') + 1)
+            : value;
+        return MemoryImage(base64Decode(payload));
+      } catch (e) {
+        debugPrint('Failed to decode profile image: $e');
+        return null;
+      }
     }
   }
 
@@ -245,17 +323,59 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               const SizedBox(width: 15),
 
-              CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.grey[200],
-                backgroundImage: _getImageProvider(user?.profilePicture),
-                child: _getImageProvider(user?.profilePicture) == null
-                    ? const Icon(
-                        Icons.account_circle_rounded,
-                        color: Colors.black,
-                        size: 100,
-                      )
-                    : null,
+              GestureDetector(
+                onTap: _onProfileImageTap,
+                child: SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.grey[200],
+                        backgroundImage: _getImageProvider(user?.profilePicture),
+                        child: _getImageProvider(user?.profilePicture) == null
+                            ? const Icon(
+                                Icons.account_circle_rounded,
+                                color: Colors.black,
+                                size: 100,
+                              )
+                            : null,
+                      ),
+                      if (isUploadingImage)
+                        Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color.fromRGBO(0, 0, 0, 0.4),
+                          ),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      Positioned(
+                        bottom: 6,
+                        right: 6,
+                        child: CircleAvatar(
+                          radius: 15,
+                          backgroundColor: Colors.black54,
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
               const SizedBox(width: 20),
