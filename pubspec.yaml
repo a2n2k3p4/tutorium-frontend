@@ -39,6 +39,7 @@ dependencies:
   # Needed by payment_screen.dart (launchUrl, LaunchMode)
   url_launcher: ^6.3.2
   image_picker: ^1.1.2
+  localstorage: ^6.0.0
   # flutter_local_notifications: ^19.4.1
 
   #  jitsi meeting sdk ref: https://jitsi.support/developer/integrating-jitsi-flutter-guide/
