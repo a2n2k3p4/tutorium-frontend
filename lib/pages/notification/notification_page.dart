@@ -65,7 +65,6 @@ class _NotificationPageState extends State<NotificationPage>
     return notificationData[tabKey]!.where((n) => n["isRead"] == false).length;
   }
 
-  /// DELETE SELECTED NOTIFICATIONS
   Future<void> deleteSelected() async {
     if (selectedNotifications.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -80,7 +79,6 @@ class _NotificationPageState extends State<NotificationPage>
       await _notiService.deleteNotification(id);
     }
 
-    // Remove deleted items from local state
     for (final key in notificationData.keys) {
       notificationData[key]!.removeWhere(
         (n) => selectedNotifications.contains(n["id"]),
@@ -88,7 +86,6 @@ class _NotificationPageState extends State<NotificationPage>
     }
 
     selectedNotifications.clear();
-
     setState(() => isDeleting = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
