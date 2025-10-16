@@ -5,6 +5,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:tutorium_frontend/pages/main_nav_page.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
+import 'package:tutorium_frontend/util/cache_user.dart';
+import 'package:tutorium_frontend/service/Users.dart' as user_api;
 
 class User {
   final int id;
@@ -109,6 +111,10 @@ class _UserLoginPageState extends State<UserLoginPage> {
         // Save user ID and token to local storage
         await LocalStorage.saveUserId(loginResponse.user.id);
         await LocalStorage.saveToken(loginResponse.token);
+
+        // Fetch full user data and save to cache
+        final fullUser = await user_api.User.fetchById(loginResponse.user.id);
+        UserCache().saveUser(fullUser);
 
         Navigator.pushAndRemoveUntil(
           context,

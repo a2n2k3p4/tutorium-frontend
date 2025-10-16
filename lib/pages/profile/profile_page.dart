@@ -9,6 +9,7 @@ import 'package:tutorium_frontend/pages/profile/allClasses_page.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
 import 'package:tutorium_frontend/service/Users.dart' as user_api;
 import 'package:tutorium_frontend/util/local_storage.dart';
+import 'package:tutorium_frontend/util/cache_user.dart';
 
 class Class {
   final int id;
@@ -52,7 +53,7 @@ class _ProfilePageState extends State<ProfilePage> {
     fetchUser();
   }
 
-  Future<void> fetchUser() async {
+  Future<void> fetchUser({bool forceRefresh = false}) async {
     if (mounted) {
       setState(() {
         isLoading = true;
@@ -66,7 +67,8 @@ class _ProfilePageState extends State<ProfilePage> {
         throw Exception('User ID not found in local storage');
       }
 
-      final fetchedUser = await user_api.User.fetchById(userId);
+      // Get user from cache or fetch if needed
+      final fetchedUser = await UserCache().getUser(userId, forceRefresh: forceRefresh);
       if (!mounted) return;
 
       setState(() {
@@ -150,6 +152,10 @@ class _ProfilePageState extends State<ProfilePage> {
           profilePicture: base64Image,
         ),
       );
+
+      // Update cache with new user data
+      UserCache().updateUser(updatedUser);
+
       if (mounted) {
         setState(() {
           user = updatedUser;
@@ -208,7 +214,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                       // Refresh user data if payment was successful
                       if (result == true) {
-                        await fetchUser();
+                        await fetchUser(forceRefresh: true);
                       }
                     },
                     child: const Icon(
