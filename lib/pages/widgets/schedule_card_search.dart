@@ -41,8 +41,11 @@ class ScheduleCard_search extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  ClassEnrollPage(classId: classId, teacherName: teacherName, rating: rating,),
+              builder: (context) => ClassEnrollPage(
+                classId: classId,
+                teacherName: teacherName,
+                rating: rating,
+              ),
             ),
           );
         },
