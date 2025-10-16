@@ -55,7 +55,37 @@ class _LoginKuPageState extends State<LoginKuPage> {
                 ),
                 const SizedBox(height: 10),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: Colors.red[50],
+                        title: Row(
+                          children: [
+                            Icon(Icons.warning, color: Colors.red[700]),
+                            const SizedBox(width: 8),
+                            const Text(
+                              "Not Implemented",
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ],
+                        ),
+                        content: const Text(
+                          "This feature is not yet implemented.",
+                          style: TextStyle(color: Colors.black87),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text(
+                              "Close",
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                   child: const Text(
                     "Trouble signing in?",
                     style: TextStyle(color: Colors.black),
