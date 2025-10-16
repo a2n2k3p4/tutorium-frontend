@@ -13,6 +13,8 @@ class _SearchPageState extends State<SearchPage> {
   final SearchService api = SearchService();
   List<dynamic> _allClasses = [];
   List<dynamic> _filteredClasses = [];
+  List<dynamic> _popularClasses = [];
+  bool showAllPopular = false;
   bool isLoading = false;
   String currentQuery = "";
 
@@ -61,6 +63,7 @@ class _SearchPageState extends State<SearchPage> {
   void initState() {
     super.initState();
     _loadClasses();
+    _loadPopularClasses();
   }
 
   Future<void> _loadClasses() async {
@@ -77,6 +80,18 @@ class _SearchPageState extends State<SearchPage> {
         _allClasses = [];
         _filteredClasses = [];
       });
+    }
+  }
+
+  Future<void> _loadPopularClasses() async {
+    try {
+      final data = await api.getPopularClasses(limit: 10);
+      if (!mounted) return;
+      setState(() {
+        _popularClasses = data;
+      });
+    } catch (e) {
+      print("Error loading popular classes: $e");
     }
   }
 
@@ -389,7 +404,7 @@ class _SearchPageState extends State<SearchPage> {
                   if (selectedCategories.isNotEmpty)
                     Chip(
                       label: Text(
-                        "Categories: ${selectedCategories.join(', ')}",
+                        "Categories: ${selectedCategories.join(',')}",
                       ),
                       onDeleted: () {
                         setState(() {
@@ -532,37 +547,82 @@ class _SearchPageState extends State<SearchPage> {
                           horizontal: 16,
                           vertical: 8,
                         ),
-                        child: Text(
-                          "Popular Class",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Popular Classes",
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (_popularClasses.length > 10)
+                              TextButton(
+                                onPressed: () async {
+                                  if (showAllPopular) {
+                                    setState(() => showAllPopular = false);
+                                    _loadPopularClasses(); // reload only top 10
+                                  } else {
+                                    final data = await api
+                                        .getPopularClasses(); // all classes
+                                    setState(() {
+                                      _popularClasses = data;
+                                      showAllPopular = true;
+                                    });
+                                  }
+                                },
+                                child: Text(
+                                  showAllPopular ? "See less" : "See more",
+                                ),
+                              ),
+                          ],
                         ),
                       ),
+
                       SizedBox(
                         height: 180,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: scheduleData.length,
-                          itemBuilder: (context, index) {
-                            final item = scheduleData[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: ScheduleCard_search(
-                                classId: item['classId'],
-                                className: item['className'],
-                                enrolledLearner: item['enrolledLearner'],
-                                teacherName: item['teacherName'],
-                                date: parseDate(item['date']),
-                                startTime: parseTime(item['startTime']),
-                                endTime: parseTime(item['endTime']),
-                                imagePath: item['imagePath'],
-                                rating: item['rating'],
+                        child: _popularClasses.isEmpty
+                            ? const Center(
+                                child: Text("No popular classes found"),
+                              )
+                            : ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _popularClasses.length,
+                                itemBuilder: (context, index) {
+                                  final item = _popularClasses[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 12),
+                                    child: ScheduleCard_search(
+                                      classId: item['classId'] ?? item['id'],
+                                      className:
+                                          item['class_name'] ?? 'Unnamed Class',
+                                      enrolledLearner:
+                                          item['enrolledLearner'] ?? 0,
+                                      teacherName:
+                                          item['teacher_name'] ??
+                                          'Unknown Teacher',
+                                      date:
+                                          DateTime.tryParse(
+                                            item['date'] ?? '',
+                                          ) ??
+                                          DateTime.now(),
+                                      startTime: parseTime(
+                                        item['startTime'] ?? '00:00',
+                                      ),
+                                      endTime: parseTime(
+                                        item['endTime'] ?? '00:00',
+                                      ),
+                                      imagePath:
+                                          item['imagePath'] ??
+                                          'assets/images/default.jpg',
+                                      rating: (item['rating'] is num)
+                                          ? (item['rating'] as num).toDouble()
+                                          : 4.5,
+                                    ),
+                                  );
+                                },
                               ),
-                            );
-                          },
-                        ),
                       ),
                     ],
                   ),
