@@ -7,112 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dart';
 import 'package:tutorium_frontend/pages/profile/allClasses_page.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
-
-class User {
-  final int id;
-  final String? studentId;
-  final String? firstName;
-  final String? lastName;
-  final String? gender;
-  final String? phoneNumber;
-  final double balance;
-  final int banCount;
-  final String? profilePicture;
-  final Teacher? teacher;
-  final Learner? learner;
-
-  User({
-    required this.id,
-    this.studentId,
-    this.firstName,
-    this.lastName,
-    this.gender,
-    this.phoneNumber,
-    required this.balance,
-    required this.banCount,
-    this.profilePicture,
-    this.teacher,
-    this.learner,
-  });
-
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      id: json['ID'],
-      studentId: json['student_id'],
-      firstName: json['first_name'],
-      lastName: json['last_name'],
-      gender: json['gender'],
-      phoneNumber: json['phone_number'],
-      balance: (json['balance'] ?? 0).toDouble(),
-      banCount: json['ban_count'] ?? 0,
-      profilePicture: json['profile_picture'],
-      teacher: json['Teacher'] != null
-          ? Teacher.fromJson(json['Teacher'])
-          : null,
-      learner: json['Learner'] != null
-          ? Learner.fromJson(json['Learner'])
-          : null,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      "ID": id,
-      "student_id": studentId,
-      "first_name": firstName,
-      "last_name": lastName,
-      "gender": gender,
-      "phone_number": phoneNumber,
-      "balance": balance,
-      "ban_count": banCount,
-      "profile_picture": profilePicture,
-      "Teacher": teacher,
-      "Learner": learner,
-    };
-  }
-}
-
-class Teacher {
-  final int id;
-  final int userId;
-  final String? description;
-  final int? flagCount;
-  final String? email;
-
-  Teacher({
-    required this.id,
-    required this.userId,
-    this.description,
-    this.flagCount,
-    this.email,
-  });
-
-  factory Teacher.fromJson(Map<String, dynamic> json) {
-    return Teacher(
-      id: json['ID'],
-      userId: json['user_id'],
-      description: json['description'] ?? '',
-      flagCount: json['flag_count'] ?? 0,
-      email: json['email'] ?? '',
-    );
-  }
-}
-
-class Learner {
-  final int id;
-  final int userId;
-  final int? flagCount;
-
-  Learner({required this.id, required this.userId, this.flagCount});
-
-  factory Learner.fromJson(Map<String, dynamic> json) {
-    return Learner(
-      id: json['ID'],
-      userId: json['user_id'],
-      flagCount: json['flag_count'] ?? 0,
-    );
-  }
-}
+import 'package:tutorium_frontend/service/Users.dart' as user_api;
+import 'package:tutorium_frontend/util/local_storage.dart';
 
 class Class {
   final int id;
@@ -137,35 +33,6 @@ class Class {
   }
 }
 
-class Review {
-  final int id;
-  final int learnerId;
-  final int classId;
-  final String? comment;
-  final double? rating;
-  final int? learnerUserId;
-
-  Review({
-    required this.id,
-    required this.learnerId,
-    required this.classId,
-    this.comment,
-    this.rating,
-    this.learnerUserId,
-  });
-
-  factory Review.fromJson(Map<String, dynamic> json) {
-    return Review(
-      id: json['ID'],
-      learnerId: json['learner_id'],
-      classId: json['class_id'],
-      comment: json['comment'],
-      rating: (json['rating'] ?? 0).toDouble(),
-      learnerUserId: json['Learner']?['user_id'],
-    );
-  }
-}
-
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -174,7 +41,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  User? user;
+  user_api.User? user;
   List<Class> allClasses = [];
   List<Class> myClasses = [];
   bool isLoading = true;
@@ -186,32 +53,38 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> fetchUser() async {
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+      });
+    }
     try {
-      final apiKey = dotenv.env["API_URL"];
-      final port = dotenv.env["PORT"];
+      // Get user ID from local storage
+      final userId = await LocalStorage.getUserId();
 
-      final apiUrl = "$apiKey:$port/users/3"; //Put the real user id here
-      final response = await http.get(Uri.parse(apiUrl));
-
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(response.body);
-        setState(() {
-          user = User.fromJson(jsonData);
-          isLoading = false;
-        });
-        await fetchClasses();
-      } else {
-        throw Exception("Failed to load user");
+      if (userId == null) {
+        throw Exception('User ID not found in local storage');
       }
+
+      final fetchedUser = await user_api.User.fetchById(userId);
+      if (!mounted) return;
+
+      setState(() {
+        user = fetchedUser;
+        isLoading = false;
+      });
+
+      await fetchClasses(fetchedUser);
     } catch (e) {
-      print("Error: $e");
+      print("Error fetching user: $e");
+      if (!mounted) return;
       setState(() {
         isLoading = false;
       });
     }
   }
 
-  Future<void> fetchClasses() async {
+  Future<void> fetchClasses([user_api.User? currentUser]) async {
     try {
       final apiKey = dotenv.env["API_URL"];
       final port = dotenv.env["PORT"];
@@ -224,12 +97,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
         final fetchedClasses = jsonData.map((c) => Class.fromJson(c)).toList();
 
+        if (!mounted) {
+          return;
+        }
         setState(() {
           allClasses = fetchedClasses;
 
-          if (user?.teacher != null) {
-            final fullName = "${user?.firstName ?? ''} ${user?.lastName ?? ''}"
-                .trim();
+          final profileUser = currentUser ?? user;
+          if (profileUser?.teacher != null) {
+            final fullName =
+                "${profileUser?.firstName ?? ''} ${profileUser?.lastName ?? ''}"
+                    .trim();
             myClasses = allClasses
                 .where((c) => c.teacherName == fullName)
                 .toList();
@@ -255,20 +133,31 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> uploadProfilePicture(int userId, String base64Image) async {
-    final apiKey = dotenv.env["API_URL"];
-    final port = dotenv.env["PORT"];
-    final apiUrl = "$apiKey:$port/users/3"; //Put the real user id here
+    if (user == null) return;
 
-    final response = await http.post(
-      Uri.parse(apiUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"user_id": userId, "profile_picture": base64Image}),
-    );
-
-    if (response.statusCode == 200) {
+    try {
+      final updatedUser = await user_api.User.update(
+        userId,
+        user_api.User(
+          id: user!.id,
+          studentId: user!.studentId,
+          firstName: user!.firstName,
+          lastName: user!.lastName,
+          gender: user!.gender,
+          phoneNumber: user!.phoneNumber,
+          balance: user!.balance,
+          banCount: user!.banCount,
+          profilePicture: base64Image,
+        ),
+      );
+      if (mounted) {
+        setState(() {
+          user = updatedUser;
+        });
+      }
       print("Upload success");
-    } else {
-      print("Upload failed: ${response.body}");
+    } catch (e) {
+      print("Upload failed: $e");
     }
   }
 

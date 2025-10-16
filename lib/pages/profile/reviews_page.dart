@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/pages/profile/profile_page.dart';
+import 'package:tutorium_frontend/models/models.dart';
 import 'dart:convert';
 
 class ReviewPage extends StatefulWidget {
@@ -82,9 +82,7 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   String getUserName(Review review) {
-    if (review.learnerUserId == null) return "Unknown";
-
-    final user = usersMap[review.learnerUserId!];
+    final user = usersMap[review.learnerId];
     if (user == null) return "Unknown";
 
     return "${user.firstName} ${user.lastName}".trim();
