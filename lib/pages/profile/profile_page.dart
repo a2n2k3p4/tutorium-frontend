@@ -9,8 +9,8 @@ import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dar
 import 'package:tutorium_frontend/pages/profile/allClasses_page.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
 import 'package:tutorium_frontend/service/Users.dart' as user_api;
-import 'package:tutorium_frontend/util/local_storage.dart';
 import 'package:tutorium_frontend/util/cache_user.dart';
+import 'package:tutorium_frontend/util/local_storage.dart';
 
 class Class {
   final int id;
@@ -144,7 +144,9 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!allowedExtensions.contains(extension)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('รองรับเฉพาะไฟล์ .jpg และ .png เท่านั้น')),
+            const SnackBar(
+              content: Text('รองรับเฉพาะไฟล์ .jpg และ .png เท่านั้น'),
+            ),
           );
         }
         return null;
@@ -334,7 +336,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       CircleAvatar(
                         radius: 50,
                         backgroundColor: Colors.grey[200],
-                        backgroundImage: _getImageProvider(user?.profilePicture),
+                        backgroundImage: _getImageProvider(
+                          user?.profilePicture,
+                        ),
                         child: _getImageProvider(user?.profilePicture) == null
                             ? const Icon(
                                 Icons.account_circle_rounded,
@@ -531,7 +535,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             className: c.className,
                             teacherName: c.teacherName,
                             rating: c.rating ?? 0.0,
-                            enrolledLearner: 100, // replace with real data
+                            enrolledLearner: 100,
+                            // replace with real data
                             imagePath:
                                 "assets/images/guitar.jpg", // wait for real image
                           ),
