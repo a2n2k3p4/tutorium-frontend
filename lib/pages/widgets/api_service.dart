@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -21,7 +20,7 @@ class ApiService {
     final queryParams = {"class_description": query, "class_name": query};
 
     final url = Uri.parse(
-      "$baseUrl/classes/search",
+      "$baseUrl/classes",
     ).replace(queryParameters: queryParams);
 
     print("Search request: $url");
@@ -44,6 +43,9 @@ class ApiService {
     String? search,
   }) async {
     final queryParams = <String, String>{};
+    if (categories != null && categories.isNotEmpty) {
+      queryParams["category"] = categories.join(",");
+    }
 
     if (minPrice != null) queryParams["min_price"] = minPrice.toString();
     if (maxPrice != null) queryParams["max_price"] = maxPrice.toString();
@@ -51,24 +53,22 @@ class ApiService {
     if (maxRating != null) queryParams["max_rating"] = maxRating.toString();
     if (search != null && search.isNotEmpty) queryParams["search"] = search;
 
-    var uri = Uri.parse(
+    final uri = Uri.parse(
       "$baseUrl/classes",
     ).replace(queryParameters: queryParams);
-
-    // Append multiple categories
-    if (categories != null && categories.isNotEmpty) {
-      final categoryParams = categories.map((c) => "category=$c").join("&");
-      final separator = uri.query.isEmpty ? "?" : "&";
-      uri = Uri.parse(uri.toString() + separator + categoryParams);
-    }
 
     print("Filter request: $uri");
 
     final response = await http.get(uri);
+    print("Response status: ${response.statusCode}");
+    print("Response body: ${response.body}");
 
     if (response.statusCode == 200) {
-      return json.decode(response.body);
+      final result = json.decode(response.body);
+      print("Filter success — found ${result.length} classes");
+      return result;
     } else {
+      print("Filter failed: ${response.statusCode}");
       throw Exception("Failed to filter classes (${response.statusCode})");
     }
   }
