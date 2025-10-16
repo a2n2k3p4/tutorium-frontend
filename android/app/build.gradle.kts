@@ -21,10 +21,9 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.a2n2k3p4.tutorium.tutorium_frontend"
-        // You can update the following values to match your application needs.
+        // You can update the following values to        applicationId = "com.a2n2k3p4.tutorium.tutorium_frontend" match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

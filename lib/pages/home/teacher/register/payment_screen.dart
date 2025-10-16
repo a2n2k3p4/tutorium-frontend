@@ -2,11 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 
 class PaymentScreen extends StatefulWidget {
-  final int userId; // Add userId parameter
+  final int userId;
 
   const PaymentScreen({super.key, required this.userId});
 
@@ -14,16 +14,18 @@ class PaymentScreen extends StatefulWidget {
   State<PaymentScreen> createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState extends State<PaymentScreen> {
+class _PaymentScreenState extends State<PaymentScreen>
+    with SingleTickerProviderStateMixin {
   late final String backendUrl;
-  late final String publicKey;
-  late final String returnUri;
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _amountController = TextEditingController();
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   bool _isLoading = false;
-  String _message = 'Ready to process payments';
-  String? _qrUrl; // for PromptPay QR
-  String? _authorizeUri; // for internet banking redirect
-  String? _chargeId; // for display/potential polling/debug
+  bool _paymentSuccess = false;
+  String _message = 'พร้อมสำหรับการสร้างคำสั่งชำระเงิน';
+  String? _chargeId;
 
   @override
   void initState() {
@@ -31,17 +33,36 @@ class _PaymentScreenState extends State<PaymentScreen> {
     backendUrl =
         '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}' ??
         'http://10.0.2.2:8080';
-    publicKey = dotenv.env['OMISE_PUBLIC_KEY'] ?? '';
-    returnUri = dotenv.env['RETURN_URI'] ?? 'https://example.com/complete';
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _animationController.dispose();
+    super.dispose();
   }
 
   // --- helpers ---
 
-  Future<void> _setStatus(String msg, {bool loading = false}) async {
+  Future<void> _setStatus(
+    String msg, {
+    bool loading = false,
+    bool success = false,
+  }) async {
     if (!mounted) return;
     setState(() {
       _message = msg;
       _isLoading = loading;
+      _paymentSuccess = success;
     });
   }
 
@@ -49,8 +70,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
     setState(() {
       _isLoading = true;
       _message = 'Processing payment...';
-      _qrUrl = null;
-      _authorizeUri = null;
       _chargeId = null;
     });
 
@@ -84,53 +103,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
       } else if (body['type'] == 'promptpay') {
         _chargeId = body['charge_id'] as String?;
         final status = (body['status'] as String?) ?? 'unknown';
-        _qrUrl = body['qr_image'] as String?;
 
         final summary = StringBuffer(
-          'Charge ${_chargeId ?? ''} → status: $status',
+          'รายการ ${_chargeId ?? '-'} สถานะ: $status',
         );
-        if (_qrUrl != null) summary.write('\nShow QR and ask user to pay.');
         await _setStatus(summary.toString());
       } else if (body['type'] == 'truemoney' ||
           body['type'] == 'internet_banking') {
         _chargeId = body['charge_id'] as String?;
         final status = (body['status'] as String?) ?? 'unknown';
-        _authorizeUri = body['authorize_uri'] as String?;
 
         final summary = StringBuffer(
           'Charge ${_chargeId ?? ''} → status: $status',
         );
-        if (_authorizeUri != null)
-          summary.write('\nNeeds authorization in browser.');
         await _setStatus(summary.toString());
       } else {
         // Fallback to original Omise response parsing
         _chargeId = body['id'] as String?;
         final status = (body['status'] as String?) ?? 'unknown';
         final paid = body['paid'] == true;
-        final authorizeUri = body['authorize_uri'] as String?;
-        final source = body['source'] as Map<String, dynamic>?;
-
-        // PromptPay QR (source.scannable_code.image.download_uri)
-        String? qr;
-        if (source != null) {
-          final scannable = source['scannable_code'] as Map<String, dynamic>?;
-          final image = scannable?['image'] as Map<String, dynamic>?;
-          qr = image?['download_uri'] as String?;
-        }
-
-        setState(() {
-          _authorizeUri = authorizeUri;
-          _qrUrl = qr;
-        });
 
         final summary = StringBuffer(
           'Charge ${_chargeId ?? ''} → status: $status',
         );
         if (paid) summary.write(' (paid)');
-        if (_authorizeUri != null)
-          summary.write('\nNeeds authorization in browser.');
-        if (_qrUrl != null) summary.write('\nShow QR and ask user to pay.');
 
         await _setStatus(summary.toString());
       }
@@ -141,269 +137,457 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  // Create a card token on Omise Vault with PUBLIC key (PCI-safe)
-  Future<String> _createCardToken({
-    required String name,
-    required String number,
-    required int expMonth,
-    required int expYear,
-    required String cvc,
-    String city = 'Bangkok',
-    String postalCode = '10320',
-  }) async {
-    if (publicKey.isEmpty) {
-      throw StateError('OMISE_PUBLIC_KEY is missing in .env');
-    }
-    final auth = 'Basic ${base64Encode(utf8.encode('$publicKey:'))}';
-    final res = await http.post(
-      Uri.parse('https://vault.omise.co/tokens'),
-      headers: {
-        'Authorization': auth,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: {
-        'card[name]': name,
-        'card[number]': number,
-        'card[expiration_month]': expMonth.toString(),
-        'card[expiration_year]': expYear.toString(),
-        'card[security_code]': cvc,
-        'card[city]': city,
-        'card[postal_code]': postalCode,
-      },
-    );
-    if (res.statusCode != 200) {
-      throw StateError('Token creation failed: ${res.statusCode} ${res.body}');
-    }
-    final tok = json.decode(res.body) as Map<String, dynamic>;
-    final id = tok['id'] as String?;
-    if (id == null || id.isEmpty) {
-      throw StateError('Invalid token response: ${res.body}');
-    }
-    return id;
-  }
-
-  // --- payment flows wired to your Go backend ---
-
-  Future<void> _payWithCard() async {
-    try {
-      // 1) Create token on client (vault.omise.co) with PUBLIC key
-      final token = await _createCardToken(
-        name: 'John Doe',
-        number: '4242424242424242',
-        expMonth: 12,
-        expYear: 2029,
-        cvc: '123',
-      );
-
-      // 2) Send token to server for charging with SECRET key
-      await _processPayment({
-        'amount': 100000, // THB 1,000.00 (subunits)
-        'currency': 'THB',
-        'paymentType': 'credit_card',
-        'token': token,
-        'return_uri': returnUri,
-      });
-    } catch (e) {
-      await _setStatus('Card flow error: $e');
-    }
-  }
-
-  Future<void> _payWithPromptPay() async {
-    await _processPayment({
-      'amount': 100000,
-      'currency': 'THB',
-      'paymentType': 'promptpay',
-      // no return_uri needed for PromptPay
-    });
-  }
-
-  Future<void> _payWithInternetBanking() async {
-    await _processPayment({
-      'amount': 100000,
-      'currency': 'THB',
-      'paymentType': 'internet_banking',
-      'bank': 'bbl', // or 'bay', 'scb', etc.
-      'return_uri': returnUri, // required for redirect flows
-    });
-  }
-
-  Future<void> _openAuthorize() async {
-    final uriStr = _authorizeUri;
-    if (uriStr == null) return;
-
-    final uri = Uri.tryParse(uriStr);
-    if (uri == null) {
-      await _setStatus('Invalid authorize URI');
+  Future<void> _checkPaymentStatus() async {
+    if (_chargeId == null || _chargeId!.isEmpty) {
+      await _setStatus('ยังไม่มีคำสั่งชำระเงินให้ตรวจสอบ');
       return;
     }
 
+    await _setStatus('กำลังตรวจสอบสถานะการชำระเงิน...', loading: true);
     try {
-      final success = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
+      final res = await http.post(
+        Uri.parse('$backendUrl/webhooks/omise'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'id': _chargeId, 'object': 'charge'}),
       );
-      if (!success) {
-        await _setStatus('Failed to open browser for authorization');
+
+      if (res.statusCode == 200) {
+        await _setStatus('การชำระเงินสำเร็จ!', success: true);
+
+        // Pop back immediately with success flag
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
+      } else {
+        await _setStatus(
+          'ตรวจสอบสถานะไม่สำเร็จ (${res.statusCode}): ${res.body}',
+        );
       }
     } catch (e) {
-      await _setStatus('Error launching URI: $e');
+      await _setStatus('เกิดข้อผิดพลาดระหว่างตรวจสอบสถานะ: $e');
     }
+  }
+
+  Future<void> _submitPayment() async {
+    final form = _formKey.currentState;
+    if (form == null) return;
+    if (!form.validate()) return;
+
+    FocusScope.of(context).unfocus();
+
+    final rawInput = _amountController.text.replaceAll(',', '').trim();
+    final amountDouble = double.tryParse(rawInput);
+    if (amountDouble == null) {
+      await _setStatus('Please enter a valid amount');
+      return;
+    }
+
+    final amountSatang = (amountDouble * 100).round();
+    if (amountSatang <= 0) {
+      await _setStatus('Amount must be greater than zero');
+      return;
+    }
+
+    await _processPayment({
+      'amount': amountSatang,
+      'currency': 'THB',
+      'paymentType': 'promptpay',
+      'description': 'Tutorium teacher registration payment',
+      'metadata': {
+        'source': 'teacher_registration',
+        'display_amount': rawInput,
+      },
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final pkDisplay = publicKey.isEmpty
-        ? '(missing OMISE_PUBLIC_KEY)'
-        : publicKey;
-
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: const Text('Payment Gateway'),
-        backgroundColor: Colors.deepPurple,
+        title: const Text(
+          'เติมเงิน',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        centerTitle: true,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: ListView(
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Public Key',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Hero card with wallet icon
+                Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const SizedBox(height: 8),
-                    SelectableText(
-                      pkDisplay,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Backend: $backendUrl'),
-                    Text('User ID: ${widget.userId}'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Select Payment Method',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _payWithCard,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Credit Card (Tokenized)'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _payWithPromptPay,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('PromptPay'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _payWithInternetBanking,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Internet Banking'),
-            ),
-            const SizedBox(height: 24),
-
-            if (_authorizeUri != null) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF667eea).withOpacity(0.3),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
                   child: Column(
                     children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.account_balance_wallet_rounded,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       const Text(
-                        'Authorization needed',
+                        'เติมเงินเข้ากระเป๋า',
                         style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _authorizeUri!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: _openAuthorize,
-                        child: const Text('Open bank authorization'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            if (_qrUrl != null) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Scan to pay (PromptPay)',
+                        'ชำระผ่าน PromptPay อย่างรวดเร็ว',
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Image.network(_qrUrl!, height: 220, fit: BoxFit.contain),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Charge: ${_chargeId ?? '-'}',
-                        style: const TextStyle(fontSize: 12),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Amount input card
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'จำนวนเงิน',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _amountController,
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                            signed: false,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d{0,2}'),
+                            ),
+                          ],
+                          decoration: InputDecoration(
+                            hintText: '0.00',
+                            hintStyle: TextStyle(
+                              color: Colors.grey.shade300,
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            prefixIcon: const Padding(
+                              padding: EdgeInsets.only(left: 16, top: 12),
+                              child: Text(
+                                '฿',
+                                style: TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF667eea),
+                                ),
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF5F7FA),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF667eea),
+                                width: 2,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: Colors.red,
+                                width: 2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 20,
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'โปรดกรอกจำนวนเงิน';
+                            }
+                            final sanitized = value.replaceAll(',', '');
+                            final parsed = double.tryParse(sanitized);
+                            if (parsed == null) {
+                              return 'จำนวนเงินไม่ถูกต้อง';
+                            }
+                            if (parsed <= 0) {
+                              return 'จำนวนเงินต้องมากกว่า 0 บาท';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        // Quick amount buttons
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [50, 100, 200, 500, 1000].map((amount) {
+                            return InkWell(
+                              onTap: () =>
+                                  _amountController.text = amount.toString(),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF5F7FA),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.grey.shade200,
+                                  ),
+                                ),
+                                child: Text(
+                                  '฿$amount',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _submitPayment,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              backgroundColor: const Color(0xFF667eea),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              disabledBackgroundColor: Colors.grey.shade300,
+                            ),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.qr_code_2_rounded, size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'สร้างคำสั่งชำระเงิน',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Status card
+                if (_chargeId != null)
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _paymentSuccess
+                                ? Colors.green.shade50
+                                : Colors.orange.shade50,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _paymentSuccess
+                                ? Icons.check_circle_rounded
+                                : Icons.schedule_rounded,
+                            size: 40,
+                            color: _paymentSuccess
+                                ? Colors.green
+                                : Colors.orange,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _paymentSuccess ? 'ชำระเงินสำเร็จ!' : 'รอการชำระเงิน',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: _paymentSuccess
+                                ? Colors.green.shade700
+                                : Colors.orange.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _message,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        if (!_paymentSuccess) ...[
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _isLoading
+                                  ? null
+                                  : _checkPaymentStatus,
+                              icon: const Icon(Icons.refresh_rounded, size: 20),
+                              label: const Text(
+                                'ตรวจสอบสถานะ',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                foregroundColor: const Color(0xFF667eea),
+                                side: const BorderSide(
+                                  color: Color(0xFF667eea),
+                                  width: 2,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                // Info card
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        color: Colors.blue.shade700,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'ชำระเงินผ่าน PromptPay แล้วกดปุ่มตรวจสอบสถานะเพื่ออัพเดทยอดเงิน',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue.shade700,
+                            height: 1.4,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Payment Status',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _isLoading
-                        ? const CircularProgressIndicator()
-                        : Text(_message, textAlign: TextAlign.center),
-                  ],
-                ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

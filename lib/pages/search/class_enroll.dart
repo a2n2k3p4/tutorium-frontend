@@ -100,7 +100,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
       });
 
       await Future.wait([fetchClassData(), fetchReviews()]);
-      await fetchUsers(); // fetch after reviews
+      await fetchUsers();
 
       setState(() {
         isLoading = false;
@@ -167,8 +167,6 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     try {
       final apiKey = dotenv.env["API_URL"];
       final port = dotenv.env["PORT"];
-
-      // Collect unique user IDs from all reviews
       final userIds = reviews
           .map((r) => r.userId)
           .where((id) => id != null && id != 0)
@@ -181,8 +179,6 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
       }
 
       final Map<int, User> fetchedUsers = {};
-
-      // Fetch each user by ID
       for (final id in userIds) {
         final apiUrl = "$apiKey:$port/users/$id";
         final response = await http.get(Uri.parse(apiUrl));
@@ -405,7 +401,6 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     );
   }
 
-  // --- UI ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(

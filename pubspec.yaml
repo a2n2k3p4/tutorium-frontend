@@ -41,6 +41,10 @@ dependencies:
   image_picker: ^1.1.2
   # flutter_local_notifications: ^19.4.1
 
+  #  jitsi meeting sdk ref: https://jitsi.support/developer/integrating-jitsi-flutter-guide/
+  jitsi_meet_flutter_sdk: ^11.6.0
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
