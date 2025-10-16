@@ -68,7 +68,10 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       // Get user from cache or fetch if needed
-      final fetchedUser = await UserCache().getUser(userId, forceRefresh: forceRefresh);
+      final fetchedUser = await UserCache().getUser(
+        userId,
+        forceRefresh: forceRefresh,
+      );
       if (!mounted) return;
 
       setState(() {
