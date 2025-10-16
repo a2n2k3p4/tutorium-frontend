@@ -25,7 +25,8 @@ class ClassInfo {
   });
 
   factory ClassInfo.fromJson(Map<String, dynamic> json) {
-    final List<String> categoryNames = (json['Categories'] as List?)
+    final List<String> categoryNames =
+        (json['Categories'] as List?)
             ?.map((c) => c['class_category']?.toString() ?? '')
             .where((name) => name.isNotEmpty)
             .toList() ??
