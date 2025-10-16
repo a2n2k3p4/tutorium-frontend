@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:tutorium_frontend/pages/home/teacher_home.dart';
-import 'package:flutter/foundation.dart';
-import 'dev/api_console_page.dart';
 import 'home/learner_home.dart';
 // import 'home/teacher/teacher_home.dart';
 import 'search/search_page.dart';
@@ -61,17 +59,6 @@ class _MainNavPageState extends State<MainNavPage> {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
       ),
-      floatingActionButton: kReleaseMode
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ApiConsolePage()),
-                );
-              },
-              icon: const Icon(Icons.terminal),
-              label: const Text('API Console'),
-            ),
     );
   }
 }
