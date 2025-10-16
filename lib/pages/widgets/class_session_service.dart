@@ -9,31 +9,41 @@ class ClassInfo {
   final int id;
   final String name;
   final String teacherName;
+  final int teacher_id;
   final String description;
   final double rating;
-  final String category;
+  final List<String> categories;
 
   ClassInfo({
     required this.id,
     required this.name,
     required this.teacherName,
+    required this.teacher_id,
     required this.description,
     required this.rating,
-    required this.category,
+    required this.categories,
   });
 
   factory ClassInfo.fromJson(Map<String, dynamic> json) {
+    final List<String> categoryNames = (json['Categories'] as List?)
+            ?.map((c) => c['class_category']?.toString() ?? '')
+            .where((name) => name.isNotEmpty)
+            .toList() ??
+        [];
     return ClassInfo(
-      id: json["ID"],
+      id: json["ID"] ?? json["id"] ?? 0,
       name: json["class_name"] ?? "",
       teacherName: json["teacherName"] ?? "",
+      teacher_id: json["teacher_id"] ?? 1,
       description: json["class_description"] ?? "",
       rating: (json["rating"] is num)
           ? (json["rating"] as num).toDouble()
           : 0.0,
-      category: json["category"] ?? "General",
+      categories: categoryNames,
     );
   }
+  String get categoryDisplay =>
+      categories.isEmpty ? "General" : categories.join(", ");
 }
 
 class ClassSession {
@@ -67,8 +77,8 @@ class ClassSession {
 
   factory ClassSession.fromJson(Map<String, dynamic> json) {
     return ClassSession(
-      id: json["ID"],
-      classId: json["class_id"],
+      id: json["ID"] ?? json["id"] ?? 0,
+      classId: json["class_id"] ?? 0,
       description: json["description"] ?? "",
       teacherName: json["teacherName"] ?? "",
       categories: json["Class"]["Categories"] ?? "",
@@ -166,6 +176,18 @@ class ClassSessionService {
       return UserInfo.fromJson(jsonData);
     } else {
       throw Exception("Failed to load user");
+    }
+  }
+
+  Future<UserInfo> fetchUserById(int id) async {
+    final url = Uri.parse("$baseUrl/users/$id");
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> jsonData = json.decode(response.body);
+      return UserInfo.fromJson(jsonData);
+    } else {
+      throw Exception("Failed to load user $id");
     }
   }
 }
