@@ -52,7 +52,6 @@ class User {
     );
   }
 
-
   String get fullName => "$firstName $lastName".trim();
 }
 
@@ -100,10 +99,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
         hasError = false;
       });
 
-      await Future.wait([
-        fetchClassData(),
-        fetchReviews(),
-      ]);
+      await Future.wait([fetchClassData(), fetchReviews()]);
       await fetchUsers(); // fetch after reviews
 
       setState(() {
@@ -119,12 +115,13 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     }
   }
 
-
   Future<void> fetchClassData() async {
-    final fetchedSessions =
-        await ClassSessionService().fetchClassSessions(widget.classId);
-    final fetchedClassInfo =
-        await ClassSessionService().fetchClassInfo(widget.classId);
+    final fetchedSessions = await ClassSessionService().fetchClassSessions(
+      widget.classId,
+    );
+    final fetchedClassInfo = await ClassSessionService().fetchClassInfo(
+      widget.classId,
+    );
     final fetchedUserInfo = await ClassSessionService().fetchUser();
 
     setState(() {
@@ -153,7 +150,8 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
         });
 
         debugPrint(
-            "🎯 Filtered ${filteredReviews.length}/${allReviews.length} reviews for class ${widget.classId}");
+          "🎯 Filtered ${filteredReviews.length}/${allReviews.length} reviews for class ${widget.classId}",
+        );
       } else {
         throw Exception("Failed to load reviews: ${response.statusCode}");
       }
@@ -292,10 +290,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
             ),
             title: Text(
               reviewerName,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,7 +337,6 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
       ],
     );
   }
-
 
   void _showEnrollConfirmationDialog(BuildContext context) {
     if (selectedSession == null || userInfo == null) return;
@@ -435,114 +429,117 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : hasError
-                          ? Column(
+                      ? Column(
+                          children: [
+                            const Icon(
+                              Icons.error,
+                              color: Colors.red,
+                              size: 64,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              "Error loading class data",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(errorMessage),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: loadAllData,
+                              child: const Text("Retry"),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "🎨 ${classInfo?.name ?? "Untitled Class"}",
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
                               children: [
-                                const Icon(Icons.error,
-                                    color: Colors.red, size: 64),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  "Error loading class data",
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(errorMessage),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: loadAllData,
-                                  child: const Text("Retry"),
-                                ),
-                              ],
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "🎨 ${classInfo?.name ?? "Untitled Class"}",
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(
-                                          fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.star,
-                                        color: Colors.amber),
-                                    const SizedBox(width: 4),
-                                    Text("${widget.rating}/5"),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Text(classInfo?.description ??
-                                    "No description available"),
-                                const SizedBox(height: 16),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "👨‍🏫 Teacher: ${widget.teacherName}",
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        if (classInfo != null &&
-                                            classInfo!.teacher_id != 0) {
-                                          final teacherId =
-                                              classInfo!.teacher_id;
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  TeacherProfilePage(
-                                                teacherId: teacherId,
-                                              ),
-                                            ),
-                                          );
-                                        } else {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(SnackBar(
-                                            content: Text(
-                                              "Teacher ID not found for ${widget.teacherName}",
-                                            ),
-                                          ));
-                                        }
-                                      },
-                                      child: const Text("View Profile"),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  "📂 Category: ${classInfo?.categories ?? "General"}",
-                                ),
-                                const Divider(height: 32),
-                                const Text(
-                                  "📅 Select Session",
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _buildSessionDropdown(),
-                                const Divider(height: 32),
-                                const Text(
-                                  "⭐ Reviews",
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _buildReviewsSection(),
+                                const Icon(Icons.star, color: Colors.amber),
+                                const SizedBox(width: 4),
+                                Text("${widget.rating}/5"),
                               ],
                             ),
+                            const SizedBox(height: 16),
+                            Text(
+                              classInfo?.description ??
+                                  "No description available",
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "👨‍🏫 Teacher: ${widget.teacherName}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    if (classInfo != null &&
+                                        classInfo!.teacher_id != 0) {
+                                      final teacherId = classInfo!.teacher_id;
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              TeacherProfilePage(
+                                                teacherId: teacherId,
+                                              ),
+                                        ),
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "Teacher ID not found for ${widget.teacherName}",
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: const Text("View Profile"),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              "📂 Category: ${classInfo?.categories ?? "General"}",
+                            ),
+                            const Divider(height: 32),
+                            const Text(
+                              "📅 Select Session",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildSessionDropdown(),
+                            const Divider(height: 32),
+                            const Text(
+                              "⭐ Reviews",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildReviewsSection(),
+                          ],
+                        ),
                 ),
               ),
             ],
