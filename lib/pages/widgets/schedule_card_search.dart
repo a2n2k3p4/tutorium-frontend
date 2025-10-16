@@ -42,7 +42,7 @@ class ScheduleCard_search extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  ClassEnrollPage(classId: classId, teacherName: teacherName),
+                  ClassEnrollPage(classId: classId, teacherName: teacherName, rating: rating,),
             ),
           );
         },
