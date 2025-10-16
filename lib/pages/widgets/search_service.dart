@@ -48,38 +48,29 @@ class SearchService {
     num? maxRating,
   }) async {
     try {
-      final uri = Uri.parse("$baseUrl/classes");
+      final queryParams = <String, String>{};
+      if (categories != null && categories.isNotEmpty) {
+        final filteredCategories = categories.where((c) => c != "All").toList();
+        if (filteredCategories.isNotEmpty) {
+          queryParams["category"] = filteredCategories.join(",");
+        }
+      }
+
+      if (minRating != null) queryParams["min_rating"] = minRating.toString();
+      if (maxRating != null) queryParams["max_rating"] = maxRating.toString();
+
+      final uri = Uri.parse(
+        "$baseUrl/classes",
+      ).replace(queryParameters: queryParams);
+      print("Filter request: $uri");
+
       final response = await http.get(uri);
+      print("Response status: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         final body = json.decode(response.body);
-        if (body is List<dynamic>) {
-          List<dynamic> data = body;
-
-          if (minRating != null) {
-            data = data.where((c) {
-              final rating = (c["rating"] is num)
-                  ? (c["rating"] as num).toDouble()
-                  : 0.0;
-              return rating >= minRating;
-            }).toList();
-          }
-          if (maxRating != null) {
-            data = data.where((c) {
-              final rating = (c["rating"] is num)
-                  ? (c["rating"] as num).toDouble()
-                  : 0.0;
-              return rating <= maxRating;
-            }).toList();
-          }
-          if (categories != null &&
-              categories.isNotEmpty &&
-              !categories.contains("All")) {
-            data = data.where((c) {
-              final List<dynamic> classCategories = c["Categories"] ?? [];
-              return classCategories.any((cat) => categories.contains(cat));
-            }).toList();
-          }
+        if (body is List) {
+          final data = List<Map<String, dynamic>>.from(body);
           data.sort((a, b) {
             final ratingA = (a["rating"] is num)
                 ? (a["rating"] as num).toDouble()
@@ -89,12 +80,50 @@ class SearchService {
                 : 0.0;
             return ratingB.compareTo(ratingA);
           });
+
           return data;
         }
       }
+
       return [];
     } catch (e) {
       print("Error filtering classes: $e");
+      return [];
+    }
+  }
+
+  Future<List<dynamic>> getPopularClasses({int? limit}) async {
+    try {
+      final uri = Uri.parse(
+        "$baseUrl/classes",
+      ).replace(queryParameters: {"sort": "popular"});
+
+      print("Popular classes request: $uri");
+
+      final response = await http.get(uri);
+      print("Popular classes status: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+
+        if (body is List) {
+          final data = List<Map<String, dynamic>>.from(body);
+          data.sort((a, b) {
+            final ratingA = (a["rating"] ?? 0).toDouble();
+            final ratingB = (b["rating"] ?? 0).toDouble();
+            return ratingB.compareTo(ratingA);
+          });
+
+          if (limit != null && data.length > limit) {
+            return data.take(limit).toList();
+          }
+          return data;
+        }
+      }
+
+      return [];
+    } catch (e) {
+      print("Error fetching popular classes: $e");
       return [];
     }
   }
