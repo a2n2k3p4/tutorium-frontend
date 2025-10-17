@@ -7,6 +7,8 @@ import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dar
 import 'package:tutorium_frontend/pages/profile/teacher_profile.dart';
 import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
 import 'package:tutorium_frontend/service/Enrollments.dart' as enrollment_api;
+import 'package:tutorium_frontend/service/Notifications.dart'
+    as notification_api;
 import 'package:tutorium_frontend/service/Users.dart' as user_api;
 import 'package:tutorium_frontend/util/cache_user.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
@@ -546,6 +548,12 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
 
       await fetchClassData();
 
+      await _createEnrollmentNotification(
+        userId: currentUser.id,
+        session: session,
+        learnerId: learnerId,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(parentContext).showSnackBar(
           SnackBar(
@@ -601,6 +609,30 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     UserCache().saveUser(serverUser);
     await LocalStorage.saveUserBalance(serverUser.balance);
     return serverUser;
+  }
+
+  Future<void> _createEnrollmentNotification({
+    required int userId,
+    required ClassSession session,
+    required int learnerId,
+  }) async {
+    final className = classInfo?.name ?? session.description;
+    final description =
+        'Enrollment confirmed for $className (Session: ${session.description}) [Learner #$learnerId].';
+
+    final notification = notification_api.NotificationModel(
+      notificationDate: DateTime.now().toUtc().toIso8601String(),
+      notificationDescription: description,
+      notificationType: 'Enrollment',
+      readFlag: false,
+      userId: userId,
+    );
+
+    try {
+      await notification_api.NotificationModel.create(notification);
+    } catch (e) {
+      debugPrint('⚠️ Failed to create enrollment notification: $e');
+    }
   }
 
   Future<void> _showEnrollConfirmationDialog(BuildContext parentContext) async {
