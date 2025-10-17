@@ -1,9 +1,15 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dart';
 import 'package:tutorium_frontend/pages/profile/teacher_profile.dart';
 import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
+import 'package:tutorium_frontend/service/Enrollments.dart' as enrollment_api;
+import 'package:tutorium_frontend/service/Users.dart' as user_api;
+import 'package:tutorium_frontend/util/cache_user.dart';
+import 'package:tutorium_frontend/util/local_storage.dart';
 
 class Review {
   final int? id;
@@ -84,6 +90,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
   bool showAllReviews = false;
   bool hasError = false;
   String errorMessage = '';
+  bool isProcessingEnrollment = false;
 
   @override
   void initState() {
@@ -116,18 +123,57 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
   }
 
   Future<void> fetchClassData() async {
-    final fetchedSessions = await ClassSessionService().fetchClassSessions(
-      widget.classId,
-    );
-    final fetchedClassInfo = await ClassSessionService().fetchClassInfo(
-      widget.classId,
-    );
-    final fetchedUserInfo = await ClassSessionService().fetchUser();
+    final previousSelectedId = selectedSession?.id;
+    final service = ClassSessionService();
 
+    final fetchedSessions = await service.fetchClassSessions(widget.classId);
+    final fetchedClassInfo = await service.fetchClassInfo(widget.classId);
+
+    UserInfo? fetchedUserInfo;
+    try {
+      fetchedUserInfo = await service.fetchUser();
+    } catch (e) {
+      debugPrint('⚠️ Failed to fetch user info: $e');
+    }
+
+    if (fetchedUserInfo != null) {
+      if (fetchedUserInfo.learnerId != null) {
+        await LocalStorage.saveLearnerId(fetchedUserInfo.learnerId!);
+      }
+
+      final cachedBalance = await LocalStorage.getUserBalance();
+      final latestBalance = _roundToCents(fetchedUserInfo.balance);
+
+      if (cachedBalance == null ||
+          (cachedBalance - latestBalance).abs() > 0.009) {
+        await LocalStorage.saveUserBalance(latestBalance);
+      }
+
+      final balanceToUse = await LocalStorage.getUserBalance() ?? latestBalance;
+      fetchedUserInfo = fetchedUserInfo.copyWith(balance: balanceToUse);
+    } else {
+      final cachedBalance = await LocalStorage.getUserBalance();
+      if (cachedBalance != null && userInfo != null) {
+        fetchedUserInfo = userInfo!.copyWith(balance: cachedBalance);
+      }
+    }
+
+    ClassSession? restoredSelection;
+    if (previousSelectedId != null) {
+      for (final session in fetchedSessions) {
+        if (session.id == previousSelectedId) {
+          restoredSelection = session;
+          break;
+        }
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
       sessions = fetchedSessions;
       classInfo = fetchedClassInfo;
       userInfo = fetchedUserInfo;
+      selectedSession = restoredSelection;
     });
   }
 
@@ -251,7 +297,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
         return DropdownMenuItem(
           value: session,
           child: Text(
-            "$dateStr • $timeStr • \$${session.price}  (Deadline: $deadlineStr)",
+            '${dateStr} • ${timeStr} • \$${session.price.toStringAsFixed(2)}  (Deadline: $deadlineStr)',
             style: const TextStyle(fontSize: 14),
           ),
         );
@@ -334,14 +380,254 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     );
   }
 
-  void _showEnrollConfirmationDialog(BuildContext context) {
-    if (selectedSession == null || userInfo == null) return;
+  Future<int?> _ensureLearnerId() async {
+    if (userInfo?.learnerId != null) {
+      await LocalStorage.saveLearnerId(userInfo!.learnerId!);
+      return userInfo!.learnerId;
+    }
 
-    final hasEnoughBalance = userInfo!.balance >= selectedSession!.price;
+    final cachedLearnerId = await LocalStorage.getLearnerId();
+    if (cachedLearnerId != null) {
+      if (mounted && userInfo != null) {
+        setState(() {
+          userInfo = userInfo!.copyWith(learnerId: cachedLearnerId);
+        });
+      }
+      return cachedLearnerId;
+    }
+
+    try {
+      final userId = await LocalStorage.getUserId();
+      if (userId == null) return null;
+      final freshUser = await user_api.User.fetchById(userId);
+      final learner = freshUser.learner;
+      if (learner != null) {
+        await LocalStorage.saveLearnerId(learner.id);
+        if (mounted && userInfo != null) {
+          setState(() {
+            userInfo = userInfo!.copyWith(learnerId: learner.id);
+          });
+        }
+        return learner.id;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to resolve learner id: $e');
+    }
+
+    return null;
+  }
+
+  Future<void> _handleEnrollment(BuildContext parentContext) async {
+    if (selectedSession == null) return;
+
+    final learnerId = await _ensureLearnerId();
+    if (learnerId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to find learner information. Please relogin.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    final session = selectedSession!;
+    final currentUser = userInfo;
+
+    if (currentUser == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          const SnackBar(content: Text('User information unavailable.')),
+        );
+      }
+      return;
+    }
+
+    if (currentUser.balance < session.price) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          parentContext,
+        ).showSnackBar(const SnackBar(content: Text('Insufficient balance.')));
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        isProcessingEnrollment = true;
+      });
+    }
+
+    try {
+      // ตรวจสอบว่าลงทะเบียนซ้ำหรือไม่ก่อนหักเงิน
+      final existingEnrollments = await enrollment_api.Enrollment.fetchAll();
+      final isDuplicate = existingEnrollments.any(
+        (e) => e.learnerId == learnerId && e.classSessionId == session.id,
+      );
+
+      if (isDuplicate) {
+        if (mounted) {
+          ScaffoldMessenger.of(parentContext).showSnackBar(
+            const SnackBar(
+              content: Text('You are already enrolled in this session.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      // ถ้าไม่ซ้ำ ค่อยหักเงิน
+      final originalBalance = currentUser.balance;
+      final deductedBalance = _roundToCents(originalBalance - session.price);
+      bool balanceDeducted = false;
+      user_api.User? updatedServerUser;
+
+      try {
+        updatedServerUser = await _updateRemoteUserBalance(
+          userId: currentUser.id,
+          balance: deductedBalance,
+        );
+        balanceDeducted = true;
+
+        final enrollment = enrollment_api.Enrollment(
+          classSessionId: session.id,
+          enrollmentStatus: 'active',
+          learnerId: learnerId,
+        );
+
+        await enrollment_api.Enrollment.create(enrollment);
+      } catch (e) {
+        debugPrint('❌ Enrollment flow failed: $e');
+
+        if (balanceDeducted) {
+          try {
+            await _updateRemoteUserBalance(
+              userId: currentUser.id,
+              balance: originalBalance,
+            );
+          } catch (restoreError) {
+            debugPrint(
+              '⚠️ Failed to restore balance after enrollment error: $restoreError',
+            );
+          }
+
+          if (mounted) {
+            setState(() {
+              userInfo = currentUser.copyWith(
+                balance: originalBalance,
+                learnerId: learnerId,
+              );
+            });
+          }
+        }
+
+        if (mounted) {
+          final message = balanceDeducted
+              ? 'Failed to enroll. We restored your balance.'
+              : 'Unable to deduct balance. Please try again.';
+          ScaffoldMessenger.of(
+            parentContext,
+          ).showSnackBar(SnackBar(content: Text(message)));
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          userInfo = currentUser.copyWith(
+            balance: updatedServerUser?.balance ?? deductedBalance,
+            learnerId: learnerId,
+          );
+        });
+      }
+
+      await fetchClassData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          SnackBar(
+            content: Text('Successfully enrolled in ${session.description} 🎉'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Enrollment check failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          const SnackBar(content: Text('Failed to process enrollment.')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isProcessingEnrollment = false;
+        });
+      }
+    }
+  }
+
+  double _roundToCents(double value) {
+    final rounded = (value * 100).round() / 100;
+    return rounded < 0 ? 0 : rounded;
+  }
+
+  Future<user_api.User> _updateRemoteUserBalance({
+    required int userId,
+    required double balance,
+  }) async {
+    user_api.User? baseUser = UserCache().user;
+    if (baseUser == null || baseUser.id != userId) {
+      baseUser = await user_api.User.fetchById(userId);
+    }
+
+    final payloadUser = user_api.User(
+      id: baseUser.id,
+      studentId: baseUser.studentId,
+      firstName: baseUser.firstName,
+      lastName: baseUser.lastName,
+      gender: baseUser.gender,
+      phoneNumber: baseUser.phoneNumber,
+      balance: balance,
+      banCount: baseUser.banCount,
+      profilePicture: baseUser.profilePicture,
+      teacher: baseUser.teacher,
+      learner: baseUser.learner,
+    );
+
+    final serverUser = await user_api.User.update(userId, payloadUser);
+    UserCache().saveUser(serverUser);
+    await LocalStorage.saveUserBalance(serverUser.balance);
+    return serverUser;
+  }
+
+  Future<void> _showEnrollConfirmationDialog(BuildContext parentContext) async {
+    if (isProcessingEnrollment || selectedSession == null) return;
+
+    final cachedBalance = await LocalStorage.getUserBalance();
+    if (mounted && cachedBalance != null && userInfo != null) {
+      setState(() {
+        userInfo = userInfo!.copyWith(balance: cachedBalance);
+      });
+    }
+
+    final currentUser = userInfo;
+    if (currentUser == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          const SnackBar(content: Text('User information unavailable.')),
+        );
+      }
+      return;
+    }
+
+    final hasEnoughBalance = currentUser.balance >= selectedSession!.price;
 
     showDialog(
-      context: context,
-      builder: (context) {
+      context: parentContext,
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text("Confirm Enrollment"),
           content: Column(
@@ -359,39 +645,45 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
               hasEnoughBalance
                   ? const Text("Your balance is enough to enroll ✅")
                   : Text(
-                      "Not enough balance ❌\nYour balance: \$${userInfo!.balance}\nNeeded: \$${selectedSession!.price}",
+                      "Not enough balance ❌\n"
+                      "Your balance: \$${currentUser.balance.toStringAsFixed(2)}\n"
+                      "Needed: \$${selectedSession!.price.toStringAsFixed(2)}",
                       textAlign: TextAlign.center,
                     ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text("Cancel"),
             ),
             if (hasEnoughBalance)
               ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        "Successfully enrolled in ${selectedSession!.description} 🎉",
-                      ),
-                    ),
-                  );
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  await _handleEnrollment(parentContext);
                 },
                 child: const Text("Confirm"),
               )
             else
               ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Redirecting to Balance Page..."),
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  final result = await Navigator.of(parentContext).push(
+                    MaterialPageRoute(
+                      builder: (_) => PaymentScreen(userId: currentUser.id),
                     ),
                   );
+                  if (result == true) {
+                    await fetchClassData();
+                  } else {
+                    final latestBalance = await LocalStorage.getUserBalance();
+                    if (mounted && latestBalance != null) {
+                      setState(() {
+                        userInfo = currentUser.copyWith(balance: latestBalance);
+                      });
+                    }
+                  }
                 },
                 child: const Text("Add Balance"),
               ),
@@ -547,13 +839,24 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
               padding: const EdgeInsets.all(16),
               color: Colors.white,
               child: ElevatedButton(
-                onPressed: selectedSession == null
+                onPressed: (selectedSession == null || isProcessingEnrollment)
                     ? null
                     : () => _showEnrollConfirmationDialog(context),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                 ),
-                child: const Text("Enroll Now"),
+                child: isProcessingEnrollment
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Text("Enroll Now"),
               ),
             ),
           ),

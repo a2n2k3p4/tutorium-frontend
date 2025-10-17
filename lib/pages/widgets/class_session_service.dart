@@ -1,9 +1,8 @@
 import 'dart:convert';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-
-int user_id =
-    4; // 6 = ถ้าอยากโชว์ตอน Enroll เงินพอ, 4 = ถ้าอยากโชว์ตอน Enroll เงินไม่พอ
+import 'package:tutorium_frontend/util/local_storage.dart';
 
 class ClassInfo {
   final int id;
@@ -43,6 +42,7 @@ class ClassInfo {
       categories: categoryNames,
     );
   }
+
   String get categoryDisplay =>
       categories.isEmpty ? "General" : categories.join(", ");
 }
@@ -106,8 +106,9 @@ class UserInfo {
   final String? lastName;
   final String? gender;
   final String? phoneNumber;
-  final int balance;
+  final double balance;
   final int banCount;
+  final int? learnerId;
 
   UserInfo({
     required this.id,
@@ -118,18 +119,47 @@ class UserInfo {
     this.phoneNumber,
     required this.balance,
     required this.banCount,
+    this.learnerId,
   });
 
   factory UserInfo.fromJson(Map<String, dynamic> json) {
+    final learner = json['Learner'] as Map<String, dynamic>?;
     return UserInfo(
-      id: json['ID'],
+      id: _parseInt(json['ID']) ?? _parseInt(json['id']) ?? 0,
       studentId: json['student_id'],
       firstName: json['first_name'],
       lastName: json['last_name'],
       gender: json['gender'],
       phoneNumber: json['phone_number'],
-      balance: json['balance'] ?? 0,
+      balance: _parseBalance(json['balance']),
       banCount: json['ban_count'] ?? 0,
+      learnerId: learner != null
+          ? _parseInt(learner['ID']) ?? _parseInt(learner['id'])
+          : null,
+    );
+  }
+
+  UserInfo copyWith({
+    int? id,
+    String? studentId,
+    String? firstName,
+    String? lastName,
+    String? gender,
+    String? phoneNumber,
+    double? balance,
+    int? banCount,
+    int? learnerId,
+  }) {
+    return UserInfo(
+      id: id ?? this.id,
+      studentId: studentId ?? this.studentId,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      gender: gender ?? this.gender,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      balance: balance ?? this.balance,
+      banCount: banCount ?? this.banCount,
+      learnerId: learnerId ?? this.learnerId,
     );
   }
 }
@@ -169,15 +199,11 @@ class ClassSessionService {
   }
 
   Future<UserInfo> fetchUser() async {
-    final url = Uri.parse("$baseUrl/users/$user_id");
-    final response = await http.get(url);
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> jsonData = json.decode(response.body);
-      return UserInfo.fromJson(jsonData);
-    } else {
-      throw Exception("Failed to load user");
+    final userId = await LocalStorage.getUserId();
+    if (userId == null) {
+      throw Exception("User ID is not available in local storage");
     }
+    return fetchUserById(userId);
   }
 
   Future<UserInfo> fetchUserById(int id) async {
@@ -191,4 +217,24 @@ class ClassSessionService {
       throw Exception("Failed to load user $id");
     }
   }
+}
+
+double _parseBalance(dynamic value) {
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    return double.tryParse(value) ?? 0.0;
+  }
+  return 0.0;
+}
+
+int? _parseInt(dynamic value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is String) {
+    return int.tryParse(value);
+  }
+  return null;
 }
