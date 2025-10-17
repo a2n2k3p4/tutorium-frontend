@@ -81,6 +81,13 @@ class _ProfilePageState extends State<ProfilePage> {
         isLoading = false;
       });
 
+      debugPrint(
+        "DEBUG ProfilePage: user loaded - ${user?.firstName} ${user?.lastName}",
+      );
+      debugPrint(
+        "DEBUG ProfilePage: user id=${user?.id}, balance=${user?.balance}",
+      );
+
       await fetchClasses(fetchedUser);
     } catch (e) {
       debugPrint("Error fetching user: $e");

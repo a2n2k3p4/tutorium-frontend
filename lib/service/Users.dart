@@ -31,6 +31,10 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    print("DEBUG User.fromJson: json=$json");
+    print(
+      "DEBUG User.fromJson: firstName=${json["first_name"]}, lastName=${json["last_name"]}",
+    );
     return User(
       id: json["ID"] ?? json["id"],
       studentId: json["student_id"],
@@ -82,9 +86,13 @@ class User {
   /// GET /users/:id (200, 400, 404, 500)
   static Future<User> fetchById(int id) async {
     final res = await http.get(ApiService.endpoint("/users/$id"));
+    print("DEBUG fetchById($id): status=${res.statusCode}");
+    print("DEBUG fetchById($id): body=${res.body}");
     switch (res.statusCode) {
       case 200:
-        return User.fromJson(jsonDecode(res.body));
+        final json = jsonDecode(res.body);
+        print("DEBUG fetchById($id): parsed JSON=$json");
+        return User.fromJson(json);
       case 400:
         throw Exception("Invalid ID: ${res.body}");
       case 404:
