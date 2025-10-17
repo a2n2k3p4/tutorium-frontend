@@ -4,17 +4,26 @@ import 'package:http/http.dart' as http;
 import 'package:tutorium_frontend/service/Apiservice.dart';
 
 class Learner {
+  final int id;
   final int flagCount;
   final int userId;
 
-  Learner({required this.flagCount, required this.userId});
+  Learner({required this.id, required this.flagCount, required this.userId});
 
   factory Learner.fromJson(Map<String, dynamic> json) {
-    return Learner(flagCount: json['flag_count'], userId: json['user_id']);
+    return Learner(
+      id: json['ID'] ?? json['id'] ?? 0,
+      flagCount: json['flag_count'] ?? 0,
+      userId: json['user_id'],
+    );
   }
 
   Map<String, dynamic> toJson() {
-    return {'flag_count': flagCount, 'user_id': userId};
+    final data = {'flag_count': flagCount, 'user_id': userId};
+    if (id != 0) {
+      data['id'] = id;
+    }
+    return data;
   }
 
   // ---------- CRUD ----------

@@ -20,11 +20,13 @@ class ClassInfo {
 
   factory ClassInfo.fromJson(Map<String, dynamic> json) {
     return ClassInfo(
-      bannerPicture: json['banner_picture'] ?? '',
+      bannerPicture: json['banner_picture'] ?? json['banner_picture_url'] ?? '',
       classDescription: json['class_description'] ?? '',
       className: json['class_name'] ?? '',
-      rating: (json['rating'] as num).toDouble(),
-      teacherId: json['teacher_id'],
+      rating: (json['rating'] is num)
+          ? (json['rating'] as num).toDouble()
+          : double.tryParse('${json['rating']}') ?? 0,
+      teacherId: json['teacher_id'] ?? json['Teacher']?['user_id'] ?? 0,
     );
   }
 
