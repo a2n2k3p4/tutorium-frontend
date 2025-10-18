@@ -1,7 +1,4 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/service/Apiservice.dart';
+import 'package:tutorium_frontend/service/api_client.dart';
 
 class User {
   final int id;
@@ -16,7 +13,7 @@ class User {
   final Teacher? teacher;
   final Learner? learner;
 
-  User({
+  const User({
     required this.id,
     this.studentId,
     this.firstName,
@@ -31,134 +28,102 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
-    print("DEBUG User.fromJson: json=$json");
-    print(
-      "DEBUG User.fromJson: firstName=${json["first_name"]}, lastName=${json["last_name"]}",
-    );
     return User(
-      id: json["ID"] ?? json["id"],
-      studentId: json["student_id"],
-      firstName: json["first_name"],
-      lastName: json["last_name"],
-      gender: json["gender"],
-      phoneNumber: json["phone_number"],
-      balance: _parseBalance(json["balance"]),
-      banCount: json["ban_count"] ?? 0,
-      profilePicture: json["profile_picture"],
-      teacher: json["Teacher"] != null
-          ? Teacher.fromJson(json["Teacher"])
+      id: json['ID'] ?? json['id'] ?? 0,
+      studentId: json['student_id'],
+      firstName: json['first_name'],
+      lastName: json['last_name'],
+      gender: json['gender'],
+      phoneNumber: json['phone_number'],
+      balance: _parseDouble(json['balance']),
+      banCount: json['ban_count'] ?? 0,
+      profilePicture: json['profile_picture'],
+      teacher: json['Teacher'] != null
+          ? Teacher.fromJson(json['Teacher'] as Map<String, dynamic>)
           : null,
-      learner: json["Learner"] != null
-          ? Learner.fromJson(json["Learner"])
+      learner: json['Learner'] != null
+          ? Learner.fromJson(json['Learner'] as Map<String, dynamic>)
           : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      "student_id": studentId,
-      "first_name": firstName,
-      "last_name": lastName,
-      "gender": gender,
-      "phone_number": phoneNumber,
-      "balance": balance,
-      "ban_count": banCount,
-      "profile_picture": profilePicture,
+    final map = <String, dynamic>{
+      'student_id': studentId,
+      'first_name': firstName,
+      'last_name': lastName,
+      'gender': gender,
+      'phone_number': phoneNumber,
+      'balance': balance,
+      'ban_count': banCount,
+      'profile_picture': profilePicture,
     };
+    map.removeWhere((_, value) => value == null);
+    return map;
   }
 
-  // ---------- CRUD ----------
-
-  /// GET /users (200)
-  static Future<List<User>> fetchAll() async {
-    final res = await http.get(ApiService.endpoint("/users"));
-    switch (res.statusCode) {
-      case 200:
-        final List<dynamic> list = jsonDecode(res.body);
-        return list.map((e) => User.fromJson(e)).toList();
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to fetch users (code: ${res.statusCode})");
-    }
+  User copyWith({
+    String? studentId,
+    String? firstName,
+    String? lastName,
+    String? gender,
+    String? phoneNumber,
+    double? balance,
+    int? banCount,
+    String? profilePicture,
+    Teacher? teacher,
+    Learner? learner,
+  }) {
+    return User(
+      id: id,
+      studentId: studentId ?? this.studentId,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      gender: gender ?? this.gender,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      balance: balance ?? this.balance,
+      banCount: banCount ?? this.banCount,
+      profilePicture: profilePicture ?? this.profilePicture,
+      teacher: teacher ?? this.teacher,
+      learner: learner ?? this.learner,
+    );
   }
 
-  /// GET /users/:id (200, 400, 404, 500)
+  static final ApiClient _client = ApiClient();
+
+  /// GET /users
+  static Future<List<User>> fetchAll({Map<String, dynamic>? query}) async {
+    final response = await _client.getJsonList(
+      '/users',
+      queryParameters: query,
+    );
+    return response.map(User.fromJson).toList();
+  }
+
+  /// GET /users/:id
   static Future<User> fetchById(int id) async {
-    final res = await http.get(ApiService.endpoint("/users/$id"));
-    print("DEBUG fetchById($id): status=${res.statusCode}");
-    print("DEBUG fetchById($id): body=${res.body}");
-    switch (res.statusCode) {
-      case 200:
-        final json = jsonDecode(res.body);
-        print("DEBUG fetchById($id): parsed JSON=$json");
-        return User.fromJson(json);
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("User not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to fetch user $id (code: ${res.statusCode})");
-    }
+    final response = await _client.getJsonMap('/users/$id');
+    return User.fromJson(response);
   }
 
-  /// POST /users (201, 400, 500)
+  /// POST /users
   static Future<User> create(User user) async {
-    final res = await http.post(
-      ApiService.endpoint("/users"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(user.toJson()),
-    );
-    switch (res.statusCode) {
-      case 201:
-        return User.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to create user (code: ${res.statusCode})");
-    }
+    final response = await _client.postJsonMap('/users', body: user.toJson());
+    return User.fromJson(response);
   }
 
-  /// PUT /users/:id (200, 400, 404, 500)
+  /// PUT /users/:id
   static Future<User> update(int id, User user) async {
-    final res = await http.put(
-      ApiService.endpoint("/users/$id"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(user.toJson()),
+    final response = await _client.putJsonMap(
+      '/users/$id',
+      body: user.toJson(),
     );
-    switch (res.statusCode) {
-      case 200:
-        return User.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 404:
-        throw Exception("User not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to update user $id (code: ${res.statusCode})");
-    }
+    return User.fromJson(response);
   }
 
-  /// DELETE /users/:id (200, 400, 404, 500)
+  /// DELETE /users/:id
   static Future<void> delete(int id) async {
-    final res = await http.delete(ApiService.endpoint("/users/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return;
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("User not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to delete user $id (code: ${res.statusCode})");
-    }
+    await _client.delete('/users/$id');
   }
 }
 
@@ -169,7 +134,7 @@ class Teacher {
   final int? flagCount;
   final String? email;
 
-  Teacher({
+  const Teacher({
     required this.id,
     required this.userId,
     this.description,
@@ -179,11 +144,11 @@ class Teacher {
 
   factory Teacher.fromJson(Map<String, dynamic> json) {
     return Teacher(
-      id: json["ID"] ?? json["id"],
-      userId: json["user_id"],
-      description: json["description"],
-      flagCount: json["flag_count"],
-      email: json["email"],
+      id: json['ID'] ?? json['id'] ?? 0,
+      userId: json['user_id'] ?? 0,
+      description: json['description'],
+      flagCount: json['flag_count'],
+      email: json['email'],
     );
   }
 }
@@ -193,23 +158,23 @@ class Learner {
   final int userId;
   final int? flagCount;
 
-  Learner({required this.id, required this.userId, this.flagCount});
+  const Learner({required this.id, required this.userId, this.flagCount});
 
   factory Learner.fromJson(Map<String, dynamic> json) {
     return Learner(
-      id: json["ID"] ?? json["id"],
-      userId: json["user_id"],
-      flagCount: json["flag_count"],
+      id: json['ID'] ?? json['id'] ?? 0,
+      userId: json['user_id'] ?? 0,
+      flagCount: json['flag_count'],
     );
   }
 }
 
-double _parseBalance(dynamic value) {
+double _parseDouble(dynamic value) {
   if (value is num) {
     return value.toDouble();
   }
   if (value is String) {
-    return double.tryParse(value) ?? 0.0;
+    return double.tryParse(value) ?? 0;
   }
-  return 0.0;
+  return 0;
 }

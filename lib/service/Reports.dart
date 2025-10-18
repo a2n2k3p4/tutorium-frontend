@@ -1,27 +1,26 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/service/Apiservice.dart';
+import 'package:tutorium_frontend/service/api_client.dart';
 
 class Report {
+  final int? id;
   final int classSessionId;
-  final String reportDate;
+  final DateTime reportDate;
   final String reportDescription;
-  final String reportPicture;
+  final String? reportPicture;
   final String reportReason;
-  final String reportResult;
+  final String? reportResult;
   final String reportStatus;
   final String reportType;
   final int reportUserId;
   final int reportedUserId;
 
-  Report({
+  const Report({
+    this.id,
     required this.classSessionId,
     required this.reportDate,
     required this.reportDescription,
-    required this.reportPicture,
+    this.reportPicture,
     required this.reportReason,
-    required this.reportResult,
+    this.reportResult,
     required this.reportStatus,
     required this.reportType,
     required this.reportUserId,
@@ -30,27 +29,29 @@ class Report {
 
   factory Report.fromJson(Map<String, dynamic> json) {
     return Report(
-      classSessionId: json['class_session_id'],
-      reportDate: json['report_date'],
-      reportDescription: json['report_description'],
+      id: json['id'] ?? json['ID'],
+      classSessionId: json['class_session_id'] ?? 0,
+      reportDate: DateTime.parse(json['report_date']).toUtc(),
+      reportDescription: json['report_description'] ?? '',
       reportPicture: json['report_picture'],
-      reportReason: json['report_reason'],
+      reportReason: json['report_reason'] ?? '',
       reportResult: json['report_result'],
-      reportStatus: json['report_status'],
-      reportType: json['report_type'],
-      reportUserId: json['report_user_id'],
-      reportedUserId: json['reported_user_id'],
+      reportStatus: json['report_status'] ?? '',
+      reportType: json['report_type'] ?? '',
+      reportUserId: json['report_user_id'] ?? 0,
+      reportedUserId: json['reported_user_id'] ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      if (id != null) 'id': id,
       'class_session_id': classSessionId,
-      'report_date': reportDate,
+      'report_date': reportDate.toIso8601String(),
       'report_description': reportDescription,
-      'report_picture': reportPicture,
+      if (reportPicture != null) 'report_picture': reportPicture,
       'report_reason': reportReason,
-      'report_result': reportResult,
+      if (reportResult != null) 'report_result': reportResult,
       'report_status': reportStatus,
       'report_type': reportType,
       'report_user_id': reportUserId,
@@ -58,97 +59,38 @@ class Report {
     };
   }
 
-  // ---------- CRUD ----------
+  static final ApiClient _client = ApiClient();
 
-  /// GET /reports (200, 500)
-  static Future<List<Report>> fetchAll() async {
-    final res = await http.get(ApiService.endpoint("/reports"));
-    switch (res.statusCode) {
-      case 200:
-        final List<dynamic> list = jsonDecode(res.body);
-        return list.map((e) => Report.fromJson(e)).toList();
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to fetch reports (code: ${res.statusCode})");
-    }
+  static Future<List<Report>> fetchAll({Map<String, dynamic>? query}) async {
+    final response = await _client.getJsonList(
+      '/reports',
+      queryParameters: query,
+    );
+    return response.map(Report.fromJson).toList();
   }
 
-  /// GET /reports/:id (200, 400, 404, 500)
   static Future<Report> fetchById(int id) async {
-    final res = await http.get(ApiService.endpoint("/reports/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return Report.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Report not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to fetch report $id (code: ${res.statusCode})");
-    }
+    final response = await _client.getJsonMap('/reports/$id');
+    return Report.fromJson(response);
   }
 
-  /// POST /reports (201, 400, 500)
   static Future<Report> create(Report report) async {
-    final res = await http.post(
-      ApiService.endpoint("/reports"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(report.toJson()),
+    final response = await _client.postJsonMap(
+      '/reports',
+      body: report.toJson(),
     );
-    switch (res.statusCode) {
-      case 201:
-        return Report.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to create report (code: ${res.statusCode})");
-    }
+    return Report.fromJson(response);
   }
 
-  /// PUT /reports/:id (200, 400, 404, 500)
   static Future<Report> update(int id, Report report) async {
-    final res = await http.put(
-      ApiService.endpoint("/reports/$id"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(report.toJson()),
+    final response = await _client.putJsonMap(
+      '/reports/$id',
+      body: report.toJson(),
     );
-    switch (res.statusCode) {
-      case 200:
-        return Report.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 404:
-        throw Exception("Report not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to update report $id (code: ${res.statusCode})",
-        );
-    }
+    return Report.fromJson(response);
   }
 
-  /// DELETE /reports/:id (200, 400, 404, 500)
   static Future<void> delete(int id) async {
-    final res = await http.delete(ApiService.endpoint("/reports/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return;
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Report not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to delete report $id (code: ${res.statusCode})",
-        );
-    }
+    await _client.delete('/reports/$id');
   }
 }

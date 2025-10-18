@@ -1,7 +1,4 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/service/Apiservice.dart';
+import 'package:tutorium_frontend/service/api_client.dart';
 
 class ClassInfo {
   final String bannerPicture;
@@ -9,6 +6,7 @@ class ClassInfo {
   final String className;
   final double rating;
   final int teacherId;
+  final List<String> categories;
 
   ClassInfo({
     required this.bannerPicture,
@@ -16,9 +14,11 @@ class ClassInfo {
     required this.className,
     required this.rating,
     required this.teacherId,
+    this.categories = const [],
   });
 
   factory ClassInfo.fromJson(Map<String, dynamic> json) {
+    final rawCategories = json['Categories'] ?? json['categories'];
     return ClassInfo(
       bannerPicture: json['banner_picture'] ?? json['banner_picture_url'] ?? '',
       classDescription: json['class_description'] ?? '',
@@ -27,6 +27,16 @@ class ClassInfo {
           ? (json['rating'] as num).toDouble()
           : double.tryParse('${json['rating']}') ?? 0,
       teacherId: json['teacher_id'] ?? json['Teacher']?['user_id'] ?? 0,
+      categories: rawCategories is List
+          ? rawCategories
+                .map(
+                  (e) => e is Map<String, dynamic>
+                      ? (e['class_category'] ?? e['category'] ?? '').toString()
+                      : e.toString(),
+                )
+                .where((name) => name.isNotEmpty)
+                .toList()
+          : const [],
     );
   }
 
@@ -37,8 +47,11 @@ class ClassInfo {
       'class_name': className,
       'rating': rating,
       'teacher_id': teacherId,
+      if (categories.isNotEmpty) 'categories': categories,
     };
   }
+
+  static final ApiClient _client = ApiClient();
 
   // ---------- CRUD ----------
 
@@ -47,111 +60,58 @@ class ClassInfo {
     List<String>? categories,
     double? minRating,
     double? maxRating,
+    double? minPrice,
+    double? maxPrice,
+    String? search,
+    String? sort,
+    int? limit,
+    int? offset,
+    int? teacherId,
   }) async {
     final queryParams = <String, dynamic>{};
     if (categories != null && categories.isNotEmpty) {
-      queryParams['category'] = categories;
+      queryParams['category'] = categories.join(',');
     }
-    if (minRating != null) {
-      queryParams['min_rating'] = minRating.toString();
-    }
-    if (maxRating != null) {
-      queryParams['max_rating'] = maxRating.toString();
-    }
-    final uri = Uri(
-      scheme: ApiService.endpoint("/classes").scheme,
-      host: ApiService.endpoint("/classes").host,
-      port: ApiService.endpoint("/classes").port,
-      path: ApiService.endpoint("/classes").path,
-      queryParameters: queryParams.isNotEmpty
-          ? queryParams.map((k, v) => MapEntry(k, v is List ? v : v.toString()))
-          : null,
+    if (minRating != null) queryParams['min_rating'] = minRating;
+    if (maxRating != null) queryParams['max_rating'] = maxRating;
+    if (minPrice != null) queryParams['min_price'] = minPrice;
+    if (maxPrice != null) queryParams['max_price'] = maxPrice;
+    if (search != null && search.isNotEmpty) queryParams['search'] = search;
+    if (sort != null && sort.isNotEmpty) queryParams['sort'] = sort;
+    if (limit != null) queryParams['limit'] = limit;
+    if (offset != null) queryParams['offset'] = offset;
+    if (teacherId != null) queryParams['teacher_id'] = teacherId;
+
+    final response = await _client.getJsonList(
+      '/classes',
+      queryParameters: queryParams.isEmpty ? null : queryParams,
     );
-    final res = await http.get(uri);
-    switch (res.statusCode) {
-      case 200:
-        final List<dynamic> list = jsonDecode(res.body);
-        return list.map((e) => ClassInfo.fromJson(e)).toList();
-      case 400:
-        throw Exception("Invalid query parameters: ${res.body}");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to fetch classes (code: ${res.statusCode})");
-    }
+    return response.map(ClassInfo.fromJson).toList();
   }
 
   /// GET /classes/:id (200, 400, 404, 500)
   static Future<ClassInfo> fetchById(int id) async {
-    final res = await http.get(ApiService.endpoint("/classes/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return ClassInfo.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Class not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to fetch class $id (code: ${res.statusCode})");
-    }
+    final response = await _client.getJsonMap('/classes/$id');
+    return ClassInfo.fromJson(response);
   }
 
   /// POST /classes (201, 400, 500)
   static Future<ClassInfo> create(ClassInfo info) async {
-    final res = await http.post(
-      ApiService.endpoint("/classes"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(info.toJson()),
-    );
-    switch (res.statusCode) {
-      case 201:
-        return ClassInfo.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to create class (code: ${res.statusCode})");
-    }
+    final response = await _client.postJsonMap('/classes', body: info.toJson());
+    return ClassInfo.fromJson(response);
   }
 
   /// PUT /classes/:id (200, 400, 404, 500)
   static Future<ClassInfo> update(int id, ClassInfo info) async {
-    final res = await http.put(
-      ApiService.endpoint("/classes/$id"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(info.toJson()),
+    final response = await _client.putJsonMap(
+      '/classes/$id',
+      body: info.toJson(),
     );
-    switch (res.statusCode) {
-      case 200:
-        return ClassInfo.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 404:
-        throw Exception("Class not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to update class $id (code: ${res.statusCode})");
-    }
+    return ClassInfo.fromJson(response);
   }
 
   /// DELETE /classes/:id (200, 400, 404, 500)
   static Future<void> delete(int id) async {
-    final res = await http.delete(ApiService.endpoint("/classes/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return;
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Class not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to delete class $id (code: ${res.statusCode})");
-    }
+    await _client.delete('/classes/$id');
   }
 }
