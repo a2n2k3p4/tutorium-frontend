@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tutorium_frontend/services/api_provider.dart';
+import 'package:tutorium_frontend/util/local_storage.dart';
 
 /// Utility functions for Learn Page
 /// Provides helper methods for Jitsi Meet integration and session management
@@ -483,7 +483,8 @@ String formatDuration(Duration duration) {
 /// Returns [Future<bool>]
 Future<bool> isLoggedIn() async {
   try {
-    return await API.auth.isLoggedIn();
+    final token = await LocalStorage.getToken();
+    return token != null && token.isNotEmpty;
   } catch (e) {
     debugPrint("❌ Failed to check login status: $e");
     return false;

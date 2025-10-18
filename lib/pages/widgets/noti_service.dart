@@ -43,7 +43,9 @@ class NotificationService {
 
         if (n["user_id"] == userId) {
           matchedCount++;
-          final notificationType = (n["notification_type"] ?? "system").toString().toLowerCase();
+          final notificationType = (n["notification_type"] ?? "system")
+              .toString()
+              .toLowerCase();
 
           final mapped = {
             "id": n["ID"],
@@ -62,7 +64,9 @@ class NotificationService {
           categorized[category]!.add(mapped);
         } else {
           skippedCount++;
-          print("   ⏭️  Skipped (user_id mismatch: ${n["user_id"]} != $userId)");
+          print(
+            "   ⏭️  Skipped (user_id mismatch: ${n["user_id"]} != $userId)",
+          );
         }
       }
 

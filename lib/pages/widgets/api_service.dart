@@ -111,7 +111,8 @@ class ApiService {
         "user_id": userId,
         "notification_type": notificationType,
         "notification_description": notificationDescription,
-        "notification_date": (notificationDate ?? DateTime.now()).toIso8601String(),
+        "notification_date": (notificationDate ?? DateTime.now())
+            .toIso8601String(),
         "read_flag": readFlag,
       }),
     );

@@ -227,9 +227,13 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
       final match = learners.where((l) => l.userId == userId).toList();
       if (match.isNotEmpty) {
         final learner = match.first;
-        _log('Matched learner via learners list: ${learner.id}');
-        await LocalStorage.saveLearnerId(learner.id);
-        return learner.id;
+        final learnerId = learner.id;
+        if (learnerId != null) {
+          _log('Matched learner via learners list: $learnerId');
+          await LocalStorage.saveLearnerId(learnerId);
+          return learnerId;
+        }
+        _log('Learner match missing id for user $userId');
       }
       _log('No learner entry matched for user $userId.');
     } catch (e) {

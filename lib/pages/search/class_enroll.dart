@@ -621,7 +621,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
         'Enrollment confirmed for $className (Session: ${session.description}) [Learner #$learnerId].';
 
     final notification = notification_api.NotificationModel(
-      notificationDate: DateTime.now().toUtc().toIso8601String(),
+      notificationDate: DateTime.now().toUtc(),
       notificationDescription: description,
       notificationType: 'Enrollment',
       readFlag: false,

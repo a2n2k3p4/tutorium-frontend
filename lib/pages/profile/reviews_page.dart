@@ -53,7 +53,7 @@ class _ReviewPageState extends State<ReviewPage> {
         throw Exception("Failed to load reviews");
       }
     } catch (e) {
-      print("Error fetching reviews: $e");
+      debugPrint("Error fetching reviews: $e");
       setState(() {
         reviews = [];
       });
@@ -77,7 +77,7 @@ class _ReviewPageState extends State<ReviewPage> {
         });
       }
     } catch (e) {
-      print("Error fetching users: $e");
+      debugPrint("Error fetching users: $e");
     }
   }
 
@@ -94,65 +94,79 @@ class _ReviewPageState extends State<ReviewPage> {
       appBar: AppBar(title: const Text("Review")),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : reviews.isEmpty
-          ? const Center(child: Text("No reviews yet"))
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: reviews.length,
-              separatorBuilder: (_, __) => const Divider(),
-              itemBuilder: (context, index) {
-                final review = reviews[index];
-                final reviewerName = getUserName(review);
+          : RefreshIndicator(
+              onRefresh: fetchData,
+              child: reviews.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 200),
+                        Center(child: Text("No reviews yet")),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: reviews.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder: (context, index) {
+                        final review = reviews[index];
+                        final reviewerName = getUserName(review);
 
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: Colors.greenAccent,
-                      radius: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                reviewerName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              Row(
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const CircleAvatar(
+                              backgroundColor: Colors.greenAccent,
+                              radius: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(
-                                    Icons.star,
-                                    color: Colors.amber,
-                                    size: 18,
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        reviewerName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.star,
+                                            color: Colors.amber,
+                                            size: 18,
+                                          ),
+                                          Text(
+                                            review.rating?.toStringAsFixed(1) ??
+                                                '0.0',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    "${review.rating?.toStringAsFixed(1) ?? '0.0'}",
+                                    review.comment,
                                     style: const TextStyle(fontSize: 14),
                                   ),
+                                  const SizedBox(height: 6),
                                 ],
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            review.comment ?? "",
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          const SizedBox(height: 6),
-                        ],
-                      ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                  ],
-                );
-              },
             ),
     );
   }

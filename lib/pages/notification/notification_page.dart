@@ -116,7 +116,9 @@ class _NotificationPageState extends State<NotificationPage>
       }
     }
 
-    print("🗑️  [PAGE] Deletion complete: $successCount success, $failCount failed");
+    print(
+      "🗑️  [PAGE] Deletion complete: $successCount success, $failCount failed",
+    );
 
     for (final key in notificationData.keys) {
       final beforeCount = notificationData[key]!.length;
@@ -131,9 +133,7 @@ class _NotificationPageState extends State<NotificationPage>
     setState(() => isDeleting = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Deleted $successCount notification(s)"),
-      ),
+      SnackBar(content: Text("Deleted $successCount notification(s)")),
     );
   }
 
@@ -189,14 +189,14 @@ class _NotificationPageState extends State<NotificationPage>
       }
     }
 
-    print("📖 [PAGE] Mark as read complete: $successCount success, $failCount failed");
+    print(
+      "📖 [PAGE] Mark as read complete: $successCount success, $failCount failed",
+    );
 
     setState(() => isMarkingAll = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Marked $successCount notification(s) as read"),
-      ),
+      SnackBar(content: Text("Marked $successCount notification(s) as read")),
     );
   }
 
