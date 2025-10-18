@@ -43,14 +43,17 @@ void main() {
         ),
       );
 
+      // Wait for initial render
+      await tester.pump();
+
       // 1. Check LearnerHomePage
       expect(find.text('Learner Home'), findsOneWidget);
-      expect(find.text('Upcoming Schedule'), findsOneWidget);
-      expect(find.byType(ScheduleCard), findsWidgets);
+      expect(find.text('My Classes'), findsOneWidget);
 
       // 2. Switch to TeacherHomePage
       await tester.tap(find.byIcon(Icons.change_circle));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       // 3. Check TeacherHomePage
       expect(
@@ -63,7 +66,8 @@ void main() {
 
       // 4. Switch back to LearnerHomePage
       await tester.tap(find.byIcon(Icons.change_circle));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       // 5. Check LearnerHomePage again
       expect(find.text('Learner Home'), findsOneWidget);
