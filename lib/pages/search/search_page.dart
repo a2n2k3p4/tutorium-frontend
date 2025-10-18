@@ -573,6 +573,10 @@ class _SearchPageState extends State<SearchPage> {
                                   item['className'] ??
                                   'Unnamed Class',
                               enrolledLearner: item['enrolledLearner'] ?? 0,
+                              learnerLimit:
+                                  item['learnerLimit'] ??
+                                  item['learner_limit'] ??
+                                  100,
                               teacherName:
                                   item['teacher_name'] ??
                                   item['teacherName'] ??
@@ -627,6 +631,7 @@ class _SearchPageState extends State<SearchPage> {
                                 classId: item['classId'],
                                 className: item['className'],
                                 enrolledLearner: item['enrolledLearner'],
+                                learnerLimit: item['learnerLimit'] ?? 100,
                                 teacherName: item['teacherName'],
                                 date: parseDate(item['date']),
                                 startTime: parseTime(item['startTime']),
@@ -695,6 +700,10 @@ class _SearchPageState extends State<SearchPage> {
                                           item['class_name'] ?? 'Unnamed Class',
                                       enrolledLearner:
                                           item['enrolledLearner'] ?? 0,
+                                      learnerLimit:
+                                          item['learnerLimit'] ??
+                                          item['learner_limit'] ??
+                                          100,
                                       teacherName:
                                           item['teacher_name'] ??
                                           'Unknown Teacher',

@@ -72,4 +72,107 @@ class ApiService {
       throw Exception("Failed to filter classes (${response.statusCode})");
     }
   }
+
+  // Notification APIs
+  Future<List<dynamic>> getAllNotifications() async {
+    final url = Uri.parse("$baseUrl/notifications");
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception("Failed to load notifications");
+    }
+  }
+
+  Future<Map<String, dynamic>> getNotificationById(int id) async {
+    final url = Uri.parse("$baseUrl/notifications/$id");
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception("Failed to load notification");
+    }
+  }
+
+  Future<Map<String, dynamic>> createNotification({
+    required int userId,
+    required String notificationType,
+    required String notificationDescription,
+    DateTime? notificationDate,
+    bool readFlag = false,
+  }) async {
+    final url = Uri.parse("$baseUrl/notifications");
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: json.encode({
+        "user_id": userId,
+        "notification_type": notificationType,
+        "notification_description": notificationDescription,
+        "notification_date": (notificationDate ?? DateTime.now())
+            .toIso8601String(),
+        "read_flag": readFlag,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      return json.decode(response.body);
+    } else {
+      throw Exception("Failed to create notification");
+    }
+  }
+
+  Future<Map<String, dynamic>> updateNotification({
+    required int id,
+    int? userId,
+    String? notificationType,
+    String? notificationDescription,
+    DateTime? notificationDate,
+    bool? readFlag,
+  }) async {
+    final url = Uri.parse("$baseUrl/notifications/$id");
+    final body = <String, dynamic>{};
+
+    if (userId != null) body["user_id"] = userId;
+    if (notificationType != null) body["notification_type"] = notificationType;
+    if (notificationDescription != null) {
+      body["notification_description"] = notificationDescription;
+    }
+    if (notificationDate != null) {
+      body["notification_date"] = notificationDate.toIso8601String();
+    }
+    if (readFlag != null) body["read_flag"] = readFlag;
+
+    final response = await http.put(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: json.encode(body),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception("Failed to update notification");
+    }
+  }
+
+  Future<void> deleteNotification(int id) async {
+    final url = Uri.parse("$baseUrl/notifications/$id");
+    final response = await http.delete(url);
+
+    if (response.statusCode != 204 && response.statusCode != 200) {
+      throw Exception("Failed to delete notification");
+    }
+  }
+
+  Future<void> markNotificationAsRead(int id) async {
+    await updateNotification(id: id, readFlag: true);
+  }
+
+  Future<List<dynamic>> getUnreadNotifications() async {
+    final notifications = await getAllNotifications();
+    return notifications.where((n) => n['read_flag'] == false).toList();
+  }
 }

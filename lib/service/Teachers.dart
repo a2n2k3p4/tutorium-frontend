@@ -1,132 +1,72 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/service/Apiservice.dart';
+import 'package:tutorium_frontend/service/api_client.dart';
 
 class Teacher {
-  final String description;
-  final String email;
-  final int flagCount;
+  final int? id;
   final int userId;
+  final String email;
+  final String description;
+  final int flagCount;
 
-  Teacher({
-    required this.description,
-    required this.email,
-    required this.flagCount,
+  const Teacher({
+    this.id,
     required this.userId,
+    required this.email,
+    required this.description,
+    required this.flagCount,
   });
 
   factory Teacher.fromJson(Map<String, dynamic> json) {
     return Teacher(
-      description: json['description'] ?? '',
+      id: json['ID'] ?? json['id'],
+      userId: json['user_id'] ?? 0,
       email: json['email'] ?? '',
-      flagCount: json['flag_count'],
-      userId: json['user_id'],
+      description: json['description'] ?? '',
+      flagCount: json['flag_count'] ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'description': description,
-      'email': email,
-      'flag_count': flagCount,
+      if (id != null) 'id': id,
       'user_id': userId,
+      'email': email,
+      'description': description,
+      'flag_count': flagCount,
     };
   }
 
-  // ---------- CRUD ----------
+  static final ApiClient _client = ApiClient();
 
-  /// GET /teachers (200, 500)
-  static Future<List<Teacher>> fetchAll() async {
-    final res = await http.get(ApiService.endpoint("/teachers"));
-    switch (res.statusCode) {
-      case 200:
-        final List<dynamic> list = jsonDecode(res.body);
-        return list.map((e) => Teacher.fromJson(e)).toList();
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to fetch teachers (code: ${res.statusCode})");
-    }
-  }
-
-  /// POST /teachers (201, 400, 500)
-  static Future<Teacher> create(Teacher teacher) async {
-    final res = await http.post(
-      ApiService.endpoint("/teachers"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(teacher.toJson()),
+  static Future<List<Teacher>> fetchAll({Map<String, dynamic>? query}) async {
+    final response = await _client.getJsonList(
+      '/teachers',
+      queryParameters: query,
     );
-    switch (res.statusCode) {
-      case 201:
-        return Teacher.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Failed to create teacher (code: ${res.statusCode})");
-    }
+    return response.map(Teacher.fromJson).toList();
   }
 
-  /// GET /teachers/:id (200, 400, 404, 500)
   static Future<Teacher> fetchById(int id) async {
-    final res = await http.get(ApiService.endpoint("/teachers/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return Teacher.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Teacher not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to fetch teacher $id (code: ${res.statusCode})",
-        );
-    }
+    final response = await _client.getJsonMap('/teachers/$id');
+    return Teacher.fromJson(response);
   }
 
-  /// PUT /teachers/:id (200, 400, 404, 500)
-  static Future<Teacher> update(int id, Teacher teacher) async {
-    final res = await http.put(
-      ApiService.endpoint("/teachers/$id"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(teacher.toJson()),
+  static Future<Teacher> create(Teacher teacher) async {
+    final response = await _client.postJsonMap(
+      '/teachers',
+      body: teacher.toJson(),
     );
-    switch (res.statusCode) {
-      case 200:
-        return Teacher.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 404:
-        throw Exception("Teacher not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to update teacher $id (code: ${res.statusCode})",
-        );
-    }
+    return Teacher.fromJson(response);
   }
 
-  /// DELETE /teachers/:id (200, 400, 404, 500)
+  static Future<Teacher> update(int id, Teacher teacher) async {
+    final response = await _client.putJsonMap(
+      '/teachers/$id',
+      body: teacher.toJson(),
+    );
+    return Teacher.fromJson(response);
+  }
+
   static Future<void> delete(int id) async {
-    final res = await http.delete(ApiService.endpoint("/teachers/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return;
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Teacher not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to delete teacher $id (code: ${res.statusCode})",
-        );
-    }
+    await _client.delete('/teachers/$id');
   }
 }

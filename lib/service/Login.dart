@@ -1,38 +1,32 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/service/Apiservice.dart';
+import 'package:tutorium_frontend/service/api_client.dart';
+import 'package:tutorium_frontend/service/Users.dart';
 
 class LoginResponse {
   final String token;
-  final Map<String, dynamic> user;
+  final User user;
 
-  LoginResponse({required this.token, required this.user});
+  const LoginResponse({required this.token, required this.user});
 
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
-    return LoginResponse(token: json['token'], user: json['user']);
+    return LoginResponse(
+      token: json['token'] ?? '',
+      user: User.fromJson(json['user'] as Map<String, dynamic>),
+    );
   }
 }
 
 class LoginService {
+  static final ApiClient _client = ApiClient();
+
   /// POST /login (200, 400, 401, 500)
-  static Future<LoginResponse> login(Map<String, dynamic> body) async {
-    final res = await http.post(
-      ApiService.endpoint("/login"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(body),
+  static Future<LoginResponse> login({
+    required String username,
+    required String password,
+  }) async {
+    final response = await _client.postJsonMap(
+      '/login',
+      body: {'username': username, 'password': password},
     );
-    switch (res.statusCode) {
-      case 200:
-        return LoginResponse.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 401:
-        throw Exception("Unauthorized: ${res.body}");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception("Login failed (code: ${res.statusCode})");
-    }
+    return LoginResponse.fromJson(response);
   }
 }

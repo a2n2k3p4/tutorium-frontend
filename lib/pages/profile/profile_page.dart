@@ -81,6 +81,13 @@ class _ProfilePageState extends State<ProfilePage> {
         isLoading = false;
       });
 
+      debugPrint(
+        "DEBUG ProfilePage: user loaded - ${user?.firstName} ${user?.lastName}",
+      );
+      debugPrint(
+        "DEBUG ProfilePage: user id=${user?.id}, balance=${user?.balance}",
+      );
+
       await fetchClasses(fetchedUser);
     } catch (e) {
       debugPrint("Error fetching user: $e");
@@ -317,237 +324,285 @@ class _ProfilePageState extends State<ProfilePage> {
           fontWeight: FontWeight.normal,
         ),
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 40),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(width: 15),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () => fetchUser(forceRefresh: true),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 40),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(width: 15),
 
-              GestureDetector(
-                onTap: _onProfileImageTap,
-                child: SizedBox(
-                  width: 100,
-                  height: 100,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.grey[200],
-                        backgroundImage: _getImageProvider(
-                          user?.profilePicture,
-                        ),
-                        child: _getImageProvider(user?.profilePicture) == null
-                            ? const Icon(
-                                Icons.account_circle_rounded,
-                                color: Colors.black,
-                                size: 100,
-                              )
-                            : null,
-                      ),
-                      if (isUploadingImage)
-                        Container(
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color.fromRGBO(0, 0, 0, 0.4),
-                          ),
-                          child: const Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                        GestureDetector(
+                          onTap: _onProfileImageTap,
+                          child: SizedBox(
+                            width: 100,
+                            height: 100,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                CircleAvatar(
+                                  radius: 50,
+                                  backgroundColor: Colors.grey[200],
+                                  backgroundImage: _getImageProvider(
+                                    user?.profilePicture,
+                                  ),
+                                  child:
+                                      _getImageProvider(user?.profilePicture) ==
+                                          null
+                                      ? const Icon(
+                                          Icons.account_circle_rounded,
+                                          color: Colors.black,
+                                          size: 100,
+                                        )
+                                      : null,
+                                ),
+                                if (isUploadingImage)
+                                  Container(
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Color.fromRGBO(0, 0, 0, 0.4),
+                                    ),
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                Positioned(
+                                  bottom: 6,
+                                  right: 6,
+                                  child: CircleAvatar(
+                                    radius: 15,
+                                    backgroundColor: Colors.black54,
+                                    child: const Icon(
+                                      Icons.camera_alt,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      Positioned(
-                        bottom: 6,
-                        right: 6,
-                        child: CircleAvatar(
-                          radius: 15,
-                          backgroundColor: Colors.black54,
-                          child: const Icon(
-                            Icons.camera_alt,
-                            color: Colors.white,
-                            size: 18,
-                          ),
+
+                        const SizedBox(width: 20),
+
+                        if (!isLoading)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    "${user?.firstName ?? ''} ${user?.lastName ?? ''}",
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    user?.gender?.toLowerCase() == "male"
+                                        ? Icons.male
+                                        : user?.gender?.toLowerCase() ==
+                                              "female"
+                                        ? Icons.female
+                                        : Icons.account_circle_rounded,
+                                    color: user?.gender?.toLowerCase() == "male"
+                                        ? Colors.blue
+                                        : user?.gender?.toLowerCase() ==
+                                              "female"
+                                        ? Colors.red
+                                        : Colors.black,
+                                    size: 30,
+                                  ),
+                                ],
+                              ),
+                              if (user?.teacher != null)
+                                Text(
+                                  "Email : ${user!.teacher!.email}",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              if (user?.learner != null &&
+                                  user?.teacher != null)
+                                Text(
+                                  "Learner & Teacher",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                )
+                              else if (user?.learner != null &&
+                                  user?.teacher == null)
+                                Text(
+                                  "Learner",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                )
+                              else if (user?.learner == null &&
+                                  user?.teacher != null)
+                                Text(
+                                  "Teacher",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              if (user?.teacher != null)
+                                Row(
+                                  children: [
+                                    const Text(
+                                      "Teacher rate : 4.0",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.star,
+                                      color: Colors.orange,
+                                      size: 18,
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          )
+                        else
+                          const Text("Loading..."),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 250),
+                      child: Text(
+                        "Description",
+                        style: TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 20),
-
-              if (!isLoading)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                    ),
+                    if (user?.teacher != null)
+                      Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: Text(
+                                "${user!.teacher!.description}",
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black,
+                                ),
+                                textAlign: TextAlign.left,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 70),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: Text(
+                                "This user doesn't have description",
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black,
+                                ),
+                                textAlign: TextAlign.left,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 70),
+                        ],
+                      ),
                     Row(
                       children: [
-                        Text(
-                          "${user?.firstName ?? ''} ${user?.lastName ?? ''}",
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
+                        Padding(
+                          padding: const EdgeInsets.only(right: 170),
+                          child: Text(
+                            "   Classes",
+                            style: TextStyle(
+                              fontSize: 25,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          user?.gender?.toLowerCase() == "male"
-                              ? Icons.male
-                              : user?.gender?.toLowerCase() == "female"
-                              ? Icons.female
-                              : Icons.account_circle_rounded,
-                          color: user?.gender?.toLowerCase() == "male"
-                              ? Colors.blue
-                              : user?.gender?.toLowerCase() == "female"
-                              ? Colors.red
-                              : Colors.black,
-                          size: 30,
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    AllClassesPage(myClasses: myClasses),
+                              ),
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.black,
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: const Text(
+                            "   See more",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.keyboard_arrow_right,
+                          color: Colors.black,
                         ),
                       ],
                     ),
                     if (user?.teacher != null)
-                      Text(
-                        "Email : ${user!.teacher!.email}",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.black,
-                        ),
-                      ),
-                    if (user?.learner != null && user?.teacher != null)
-                      Text(
-                        "Learner & Teacher",
-                        style: TextStyle(fontSize: 16, color: Colors.black),
-                      )
-                    else if (user?.learner != null && user?.teacher == null)
-                      Text(
-                        "Learner",
-                        style: TextStyle(fontSize: 16, color: Colors.black),
-                      )
-                    else if (user?.learner == null && user?.teacher != null)
-                      Text(
-                        "Teacher",
-                        style: TextStyle(fontSize: 16, color: Colors.black),
-                      ),
-                    Row(
-                      children: [
-                        if (user?.teacher != null)
-                          Row(
-                            children: [
-                              const Text(
-                                "Teacher rate : 4.0",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              Icon(Icons.star, color: Colors.orange),
-                            ],
-                          ),
-                      ],
-                    ),
+                      myClasses.isNotEmpty
+                          ? Column(
+                              children: myClasses
+                                  .take(2)
+                                  .map(
+                                    (c) => ClassCard(
+                                      id: c.id,
+                                      className: c.className,
+                                      teacherName: c.teacherName,
+                                      rating: c.rating ?? 0.0,
+                                      enrolledLearner: 100,
+                                      // replace with real data
+                                      imagePath:
+                                          "assets/images/guitar.jpg", // wait for real image
+                                    ),
+                                  )
+                                  .toList(),
+                            )
+                          : const Text("No classes found for this teacher")
+                    else
+                      const SizedBox(height: 135),
                   ],
-                )
-              else
-                const Text("Loading..."),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.only(right: 250),
-            child: Text(
-              "Description",
-              style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
-            ),
-          ),
-          if (user?.teacher != null)
-            Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 228),
-                  child: Text(
-                    "${user!.teacher!.description}",
-                    style: TextStyle(fontSize: 16, color: Colors.black),
-                  ),
-                ),
-                const SizedBox(height: 70),
-              ],
-            )
-          else
-            Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 130),
-                  child: Text(
-                    "This user doesn't have description",
-                    style: TextStyle(fontSize: 16, color: Colors.black),
-                  ),
-                ),
-                const SizedBox(height: 70),
-              ],
-            ),
-          Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 170),
-                child: Text(
-                  "   Classes",
-                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
                 ),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          AllClassesPage(myClasses: myClasses),
-                    ),
-                  );
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.black,
-                  padding: EdgeInsets.zero,
-                ),
-                child: const Text(
-                  "   See more",
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              const Icon(Icons.keyboard_arrow_right, color: Colors.black),
-            ],
-          ),
-          if (user?.teacher != null)
-            myClasses.isNotEmpty
-                ? Column(
-                    children: myClasses
-                        .take(2)
-                        .map(
-                          (c) => ClassCard(
-                            id: c.id,
-                            className: c.className,
-                            teacherName: c.teacherName,
-                            rating: c.rating ?? 0.0,
-                            enrolledLearner: 100,
-                            // replace with real data
-                            imagePath:
-                                "assets/images/guitar.jpg", // wait for real image
-                          ),
-                        )
-                        .toList(),
-                  )
-                : const Text("No classes found for this teacher")
-          else
-            const SizedBox(height: 135),
-        ],
-      ),
+            ),
     );
   }
 }

@@ -1,7 +1,4 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/service/Apiservice.dart';
+import 'package:tutorium_frontend/service/api_client.dart';
 
 class Enrollment {
   final int classSessionId;
@@ -32,101 +29,45 @@ class Enrollment {
 
   // ---------- CRUD ----------
 
+  static final ApiClient _client = ApiClient();
+
   /// GET /enrollments (200, 500)
-  static Future<List<Enrollment>> fetchAll() async {
-    final res = await http.get(ApiService.endpoint("/enrollments"));
-    switch (res.statusCode) {
-      case 200:
-        final List<dynamic> list = jsonDecode(res.body);
-        return list.map((e) => Enrollment.fromJson(e)).toList();
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to fetch enrollments (code: ${res.statusCode})",
-        );
-    }
+  static Future<List<Enrollment>> fetchAll({
+    Map<String, dynamic>? query,
+  }) async {
+    final response = await _client.getJsonList(
+      '/enrollments',
+      queryParameters: query,
+    );
+    return response.map(Enrollment.fromJson).toList();
   }
 
   /// GET /enrollments/:id (200, 400, 404, 500)
   static Future<Enrollment> fetchById(int id) async {
-    final res = await http.get(ApiService.endpoint("/enrollments/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return Enrollment.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Enrollment not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to fetch enrollment $id (code: ${res.statusCode})",
-        );
-    }
+    final response = await _client.getJsonMap('/enrollments/$id');
+    return Enrollment.fromJson(response);
   }
 
   /// POST /enrollments (201, 400, 500)
   static Future<Enrollment> create(Enrollment enrollment) async {
-    final res = await http.post(
-      ApiService.endpoint("/enrollments"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(enrollment.toJson()),
+    final response = await _client.postJsonMap(
+      '/enrollments',
+      body: enrollment.toJson(),
     );
-    switch (res.statusCode) {
-      case 201:
-        return Enrollment.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to create enrollment (code: ${res.statusCode})",
-        );
-    }
+    return Enrollment.fromJson(response);
   }
 
   /// PUT /enrollments/:id (200, 400, 404, 500)
   static Future<Enrollment> update(int id, Enrollment enrollment) async {
-    final res = await http.put(
-      ApiService.endpoint("/enrollments/$id"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(enrollment.toJson()),
+    final response = await _client.putJsonMap(
+      '/enrollments/$id',
+      body: enrollment.toJson(),
     );
-    switch (res.statusCode) {
-      case 200:
-        return Enrollment.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 404:
-        throw Exception("Enrollment not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to update enrollment $id (code: ${res.statusCode})",
-        );
-    }
+    return Enrollment.fromJson(response);
   }
 
   /// DELETE /enrollments/:id (200, 400, 404, 500)
   static Future<void> delete(int id) async {
-    final res = await http.delete(ApiService.endpoint("/enrollments/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return;
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Enrollment not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to delete enrollment $id (code: ${res.statusCode})",
-        );
-    }
+    await _client.delete('/enrollments/$id');
   }
 }

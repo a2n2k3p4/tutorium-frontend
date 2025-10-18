@@ -1,163 +1,114 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/service/Apiservice.dart';
+import 'package:tutorium_frontend/service/api_client.dart';
 
 class ClassInfo {
-  final String bannerPicture;
-  final String classDescription;
+  final int id;
   final String className;
+  final String classDescription;
   final double rating;
   final int teacherId;
+  final String? bannerPicture;
 
-  ClassInfo({
-    required this.bannerPicture,
-    required this.classDescription,
+  const ClassInfo({
+    required this.id,
     required this.className,
+    required this.classDescription,
     required this.rating,
     required this.teacherId,
+    this.bannerPicture,
   });
 
   factory ClassInfo.fromJson(Map<String, dynamic> json) {
     return ClassInfo(
-      bannerPicture: json["banner_picture"],
-      classDescription: json["class_description"],
-      className: json["class_name"],
-      rating: (json["rating"] as num).toDouble(),
-      teacherId: json["teacher_id"],
+      id: json['id'] ?? json['ID'] ?? 0,
+      className: json['class_name'] ?? '',
+      classDescription: json['class_description'] ?? '',
+      rating: _parseDouble(json['rating']),
+      teacherId: json['teacher_id'] ?? 0,
+      bannerPicture: json['banner_picture'] ?? json['banner_picture_url'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      "banner_picture": bannerPicture,
-      "class_description": classDescription,
-      "class_name": className,
-      "rating": rating,
-      "teacher_id": teacherId,
+      'id': id,
+      'class_name': className,
+      'class_description': classDescription,
+      'rating': rating,
+      'teacher_id': teacherId,
+      if (bannerPicture != null) 'banner_picture': bannerPicture,
     };
   }
 }
 
 class ClassCategory {
+  final int id;
   final String classCategory;
   final List<ClassInfo> classes;
 
-  ClassCategory({required this.classCategory, required this.classes});
+  const ClassCategory({
+    required this.id,
+    required this.classCategory,
+    this.classes = const [],
+  });
 
   factory ClassCategory.fromJson(Map<String, dynamic> json) {
     return ClassCategory(
-      classCategory: json["class_category"],
-      classes: (json["classes"] as List<dynamic>)
-          .map((e) => ClassInfo.fromJson(e))
+      id: json['id'] ?? json['ID'] ?? 0,
+      classCategory: json['class_category'] ?? '',
+      classes: (json['classes'] as List<dynamic>? ?? const [])
+          .map((e) => ClassInfo.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      "class_category": classCategory,
-      "classes": classes.map((e) => e.toJson()).toList(),
+      'class_category': classCategory,
+      if (classes.isNotEmpty)
+        'classes': classes.map((e) => e.toJson()).toList(),
     };
   }
 
-  // ---------- CRUD ----------
+  static final ApiClient _client = ApiClient();
 
-  /// GET /class_categories (200)
-  static Future<List<ClassCategory>> fetchAll() async {
-    final res = await http.get(ApiService.endpoint("/class_categories"));
-    switch (res.statusCode) {
-      case 200:
-        final List<dynamic> list = jsonDecode(res.body);
-        return list.map((e) => ClassCategory.fromJson(e)).toList();
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to fetch class categories (code: ${res.statusCode})",
-        );
-    }
+  static Future<List<ClassCategory>> fetchAll({
+    Map<String, dynamic>? query,
+  }) async {
+    final response = await _client.getJsonList(
+      '/class_categories',
+      queryParameters: query,
+    );
+    return response.map(ClassCategory.fromJson).toList();
   }
 
-  /// GET /class_categories/:id (200, 400, 404, 500)
   static Future<ClassCategory> fetchById(int id) async {
-    final res = await http.get(ApiService.endpoint("/class_categories/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return ClassCategory.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Class category not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to fetch class category $id (code: ${res.statusCode})",
-        );
-    }
+    final response = await _client.getJsonMap('/class_categories/$id');
+    return ClassCategory.fromJson(response);
   }
 
-  /// POST /class_categories (201, 400, 500)
   static Future<ClassCategory> create(ClassCategory category) async {
-    final res = await http.post(
-      ApiService.endpoint("/class_categories"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(category.toJson()),
+    final response = await _client.postJsonMap(
+      '/class_categories',
+      body: category.toJson(),
     );
-    switch (res.statusCode) {
-      case 201:
-        return ClassCategory.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to create class category (code: ${res.statusCode})",
-        );
-    }
+    return ClassCategory.fromJson(response);
   }
 
-  /// PUT /class_categories/:id (200, 400, 404, 500)
   static Future<ClassCategory> update(int id, ClassCategory category) async {
-    final res = await http.put(
-      ApiService.endpoint("/class_categories/$id"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(category.toJson()),
+    final response = await _client.putJsonMap(
+      '/class_categories/$id',
+      body: category.toJson(),
     );
-    switch (res.statusCode) {
-      case 200:
-        return ClassCategory.fromJson(jsonDecode(res.body));
-      case 400:
-        throw Exception("Invalid input: ${res.body}");
-      case 404:
-        throw Exception("Class category not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to update class category $id (code: ${res.statusCode})",
-        );
-    }
+    return ClassCategory.fromJson(response);
   }
 
-  /// DELETE /class_categories/:id (200, 400, 404, 500)
   static Future<void> delete(int id) async {
-    final res = await http.delete(ApiService.endpoint("/class_categories/$id"));
-    switch (res.statusCode) {
-      case 200:
-        return;
-      case 400:
-        throw Exception("Invalid ID: ${res.body}");
-      case 404:
-        throw Exception("Class category not found");
-      case 500:
-        throw Exception("Server error: ${res.body}");
-      default:
-        throw Exception(
-          "Failed to delete class category $id (code: ${res.statusCode})",
-        );
-    }
+    await _client.delete('/class_categories/$id');
   }
+}
+
+double _parseDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0;
+  return 0;
 }
