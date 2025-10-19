@@ -6,18 +6,18 @@ class ClassCard extends StatelessWidget {
   final String className;
   final String teacherName;
   final double rating;
-  final int enrolledLearner;
-  final String imagePath;
+  final int? enrolledLearner;
+  final String? imageUrl;
 
   const ClassCard({
-    Key? key,
+    super.key,
     required this.id,
     required this.className,
     required this.teacherName,
     required this.rating,
-    required this.enrolledLearner,
-    required this.imagePath,
-  }) : super(key: key);
+    this.enrolledLearner,
+    this.imageUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +33,7 @@ class ClassCard extends StatelessWidget {
               topLeft: Radius.circular(15),
               bottomLeft: Radius.circular(15),
             ),
-            child: Image.asset(
-              imagePath,
-              width: 120,
-              height: 160,
-              fit: BoxFit.cover,
-            ),
+            child: _buildPreviewImage(),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -70,7 +65,7 @@ class ClassCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "Enrolled Learner : $enrolledLearner",
+                    "Enrolled Learner : ${enrolledLearner ?? '-'}",
                     style: const TextStyle(fontSize: 13.0),
                   ),
                   const SizedBox(height: 8),
@@ -96,6 +91,49 @@ class ClassCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewImage() {
+    if (imageUrl == null || imageUrl!.isEmpty) {
+      return _buildPlaceholderImage();
+    }
+
+    return Image.network(
+      imageUrl!,
+      width: 120,
+      height: 160,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return SizedBox(
+          width: 120,
+          height: 160,
+          child: Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              value: progress.expectedTotalBytes != null
+                  ? progress.cumulativeBytesLoaded /
+                        (progress.expectedTotalBytes ?? 1)
+                  : null,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: 120,
+      height: 160,
+      color: Colors.grey.shade200,
+      child: Icon(
+        Icons.photo_library_outlined,
+        color: Colors.grey.shade500,
+        size: 32,
       ),
     );
   }
