@@ -763,9 +763,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                           decoration: BoxDecoration(
                             color: Colors.orange.shade50,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.orange.shade200,
-                            ),
+                            border: Border.all(color: Colors.orange.shade200),
                           ),
                           child: Row(
                             children: [
@@ -793,8 +791,9 @@ class _PaymentScreenState extends State<PaymentScreen>
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: [50, 100, 200, 500, 1000, 5000, 10000]
-                              .map((amount) {
+                          children: [50, 100, 200, 500, 1000, 5000, 10000].map((
+                            amount,
+                          ) {
                             return InkWell(
                               onTap: () =>
                                   _amountController.text = amount.toString(),

@@ -60,11 +60,15 @@ class _AuthCheckerState extends State<AuthChecker> {
       final userId = await LocalStorage.getUserId();
       final token = await LocalStorage.getToken();
 
-      debugPrint('DEBUG AuthChecker: userId=$userId, hasToken=${token != null}');
+      debugPrint(
+        'DEBUG AuthChecker: userId=$userId, hasToken=${token != null}',
+      );
 
       if (userId == null || token == null) {
         // ถ้าไม่มี userId หรือ token -> ไปหน้า Login
-        debugPrint('DEBUG AuthChecker: No userId or token found -> go to Login');
+        debugPrint(
+          'DEBUG AuthChecker: No userId or token found -> go to Login',
+        );
         _navigateToLogin();
         return;
       }
@@ -87,7 +91,9 @@ class _AuthCheckerState extends State<AuthChecker> {
         _navigateToHome();
       } else {
         // ถ้า restore ไม่ได้ -> ลบข้อมูลเก่าและไปหน้า Login
-        debugPrint('DEBUG AuthChecker: Failed to restore user -> clear and go to Login');
+        debugPrint(
+          'DEBUG AuthChecker: Failed to restore user -> clear and go to Login',
+        );
         await LocalStorage.clear();
         UserCache().clear();
         _navigateToLogin();
@@ -135,11 +141,7 @@ class _AuthCheckerState extends State<AuthChecker> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              "assets/images/KT.png",
-              width: 120,
-              height: 120,
-            ),
+            Image.asset("assets/images/KT.png", width: 120, height: 120),
             const SizedBox(height: 40),
             if (_isChecking) ...[
               const CircularProgressIndicator(

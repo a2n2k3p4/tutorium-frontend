@@ -30,22 +30,18 @@ class ScheduleConflictDialog extends StatelessWidget {
           children: [
             Text(
               message,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             if (conflictSessions != null && conflictSessions!.isNotEmpty) ...[
               const SizedBox(height: 16),
               const Text(
                 'Class Sessions ที่ทับกัน:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               const SizedBox(height: 8),
-              ...conflictSessions!.map((session) => _buildConflictCard(session)),
+              ...conflictSessions!.map(
+                (session) => _buildConflictCard(session),
+              ),
             ],
           ],
         ),
@@ -72,10 +68,7 @@ class ScheduleConflictDialog extends StatelessWidget {
           children: [
             Text(
               session.description,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
             const SizedBox(height: 4),
             Row(
@@ -84,10 +77,7 @@ class ScheduleConflictDialog extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   '${ScheduleValidator.formatDateTime(start)} - ${ScheduleValidator.formatDateTime(end)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),

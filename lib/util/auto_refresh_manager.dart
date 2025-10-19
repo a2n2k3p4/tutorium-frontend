@@ -108,7 +108,9 @@ class AutoRefreshManager {
   /// ทำการ refresh จริง (background, smooth, no loading)
   Future<bool> _performRefresh() async {
     if (_isRefreshing || _currentUserId == null) {
-      debugPrint("DEBUG AutoRefresh: Skipping refresh - already refreshing or no user");
+      debugPrint(
+        "DEBUG AutoRefresh: Skipping refresh - already refreshing or no user",
+      );
       return false;
     }
 
@@ -157,8 +159,7 @@ class AutoRefreshManager {
 
       // Retry strategy: ถ้า error ให้ retry เร็วขึ้น
       if (_isEnabled) {
-        final retryDelay =
-            _errorCount < 3 ? retryInterval : refreshInterval;
+        final retryDelay = _errorCount < 3 ? retryInterval : refreshInterval;
 
         debugPrint(
           "DEBUG AutoRefresh: Will retry in ${retryDelay.inSeconds} seconds",
@@ -202,9 +203,7 @@ class AutoRefreshManager {
     debugPrint("Enabled: $_isEnabled");
     debugPrint("Refreshing: $_isRefreshing");
     debugPrint("User ID: $_currentUserId");
-    debugPrint(
-      "Last Refresh: ${_lastRefreshTime?.toString() ?? 'Never'}",
-    );
+    debugPrint("Last Refresh: ${_lastRefreshTime?.toString() ?? 'Never'}");
     debugPrint("Refresh Count: $_refreshCount");
     debugPrint("Error Count: $_errorCount");
     debugPrint("========================");

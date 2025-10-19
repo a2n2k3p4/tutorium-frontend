@@ -108,7 +108,9 @@ class _CreateSessionFormState extends State<CreateSessionForm> {
       return;
     }
 
-    if (_classStart == null || _classFinish == null || _enrollmentDeadline == null) {
+    if (_classStart == null ||
+        _classFinish == null ||
+        _enrollmentDeadline == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กรุณาเลือกวันและเวลาให้ครบถ้วน')),
       );
@@ -121,11 +123,12 @@ class _CreateSessionFormState extends State<CreateSessionForm> {
 
     try {
       // 1. ตรวจสอบเวลาทับกันก่อน
-      final validationResult = await ScheduleValidator.validateBeforeCreateSession(
-        teacherId: widget.teacherId,
-        classStart: _classStart!,
-        classFinish: _classFinish!,
-      );
+      final validationResult =
+          await ScheduleValidator.validateBeforeCreateSession(
+            teacherId: widget.teacherId,
+            classStart: _classStart!,
+            classFinish: _classFinish!,
+          );
 
       if (!validationResult['valid']) {
         // แสดง dialog เวลาทับกัน
@@ -169,9 +172,9 @@ class _CreateSessionFormState extends State<CreateSessionForm> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
       }
     } finally {
       if (mounted) {
@@ -185,9 +188,7 @@ class _CreateSessionFormState extends State<CreateSessionForm> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('สร้าง Class Session'),
-      ),
+      appBar: AppBar(title: const Text('สร้าง Class Session')),
       body: Form(
         key: _formKey,
         child: ListView(

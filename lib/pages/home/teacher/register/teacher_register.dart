@@ -172,7 +172,9 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(ctx).pop(); // ปิด dialog
-                  Navigator.of(context).pop(true); // กลับไปหน้าหลักพร้อม refresh
+                  Navigator.of(
+                    context,
+                  ).pop(true); // กลับไปหน้าหลักพร้อม refresh
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
@@ -344,6 +346,7 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
       ],
     );
   }
+
   @override
   Widget build(BuildContext context) {
     if (_isCheckingEligibility) {
@@ -381,10 +384,7 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
               // Header
               const Text(
                 "Teacher Registration",
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
 
@@ -475,10 +475,7 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
                       Icons.attach_money,
                       'Earn income from teaching',
                     ),
-                    _buildBenefit(
-                      Icons.dashboard,
-                      'Teacher dashboard access',
-                    ),
+                    _buildBenefit(Icons.dashboard, 'Teacher dashboard access'),
                     _buildBenefit(
                       Icons.verified_user,
                       'Verified teacher badge',
@@ -492,10 +489,7 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
               // Form
               const Text(
                 "Complete Your Profile",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
 
@@ -597,10 +591,7 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
               const Center(
                 child: Text(
                   'Payment will be deducted from your balance',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ),
 
@@ -619,12 +610,7 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
         children: [
           Icon(icon, size: 24, color: Colors.green[700]),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 16),
-            ),
-          ),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 16))),
         ],
       ),
     );

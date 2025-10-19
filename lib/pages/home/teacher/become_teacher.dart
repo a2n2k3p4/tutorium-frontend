@@ -43,7 +43,9 @@ class _BecomeTeacherHomePageState extends State<BecomeTeacherHomePage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('You are already a teacher! Switching to Teacher Home...'),
+            content: Text(
+              'You are already a teacher! Switching to Teacher Home...',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -56,13 +58,13 @@ class _BecomeTeacherHomePageState extends State<BecomeTeacherHomePage> {
         }
       } else {
         // ถ้ายังไม่ได้เป็น Teacher ให้ไปหน้าสมัคร
-        debugPrint("DEBUG BecomeTeacher: Not a teacher yet, navigating to registration");
+        debugPrint(
+          "DEBUG BecomeTeacher: Not a teacher yet, navigating to registration",
+        );
 
         final result = await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (ctx) => const TeacherRegisterPage(),
-          ),
+          MaterialPageRoute(builder: (ctx) => const TeacherRegisterPage()),
         );
 
         // ถ้าสมัครสำเร็จ ให้ switch ไป Teacher Home
@@ -87,6 +89,7 @@ class _BecomeTeacherHomePageState extends State<BecomeTeacherHomePage> {
       );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,7 +155,11 @@ class _BecomeTeacherHomePageState extends State<BecomeTeacherHomePage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Icon(Icons.co_present_rounded, size: 60, color: Colors.black),
+                        Icon(
+                          Icons.co_present_rounded,
+                          size: 60,
+                          color: Colors.black,
+                        ),
                         SizedBox(height: 15),
                         Text(
                           "Become a Teacher",

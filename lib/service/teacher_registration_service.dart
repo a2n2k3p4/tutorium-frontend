@@ -59,9 +59,7 @@ class TeacherRegistrationService {
     required String email,
     required String description,
   }) async {
-    debugPrint(
-      "DEBUG TeacherReg: Starting registration for user $userId",
-    );
+    debugPrint("DEBUG TeacherReg: Starting registration for user $userId");
 
     try {
       // STEP 1: ตรวจสอบสิทธิ์ก่อนเริ่ม transaction
@@ -91,7 +89,9 @@ class TeacherRegistrationService {
       }
 
       // STEP 2: เริ่ม Transaction - หักเงิน + สร้าง Teacher
-      debugPrint("DEBUG TeacherReg: Balance check passed, starting transaction");
+      debugPrint(
+        "DEBUG TeacherReg: Balance check passed, starting transaction",
+      );
 
       // 2.1: สร้าง Teacher record ก่อน (backend จะจัดการการหักเงินเอง)
       final newTeacher = teacher_service.Teacher(

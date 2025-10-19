@@ -117,15 +117,13 @@ class _UserLoginPageState extends State<UserLoginPage> {
         UserCache().saveUser(fullUser); // This also saves to LocalStorage
 
         debugPrint('DEBUG Login: User saved to cache and local storage');
-        debugPrint('DEBUG Login: userId=${fullUser.id}, name=${fullUser.firstName}');
+        debugPrint(
+          'DEBUG Login: userId=${fullUser.id}, name=${fullUser.firstName}',
+        );
 
         if (!mounted) return;
 
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/home',
-          (route) => false,
-        );
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

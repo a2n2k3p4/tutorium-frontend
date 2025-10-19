@@ -84,11 +84,7 @@ class ScheduleValidator {
         };
       }
 
-      return {
-        'valid': true,
-        'message': null,
-        'conflictSessions': null,
-      };
+      return {'valid': true, 'message': null, 'conflictSessions': null};
     } catch (e) {
       return {
         'valid': false,
@@ -125,8 +121,9 @@ class ScheduleValidator {
         }
 
         try {
-          final session =
-              await ClassSession.fetchById(enrollment.classSessionId);
+          final session = await ClassSession.fetchById(
+            enrollment.classSessionId,
+          );
           final sessionStart = DateTime.parse(session.classStart);
           final sessionEnd = DateTime.parse(session.classFinish);
 
@@ -154,11 +151,7 @@ class ScheduleValidator {
         };
       }
 
-      return {
-        'valid': true,
-        'message': null,
-        'conflictSessions': null,
-      };
+      return {'valid': true, 'message': null, 'conflictSessions': null};
     } catch (e) {
       return {
         'valid': false,
@@ -253,7 +246,8 @@ class ScheduleValidator {
       final start = DateTime.parse(session.classStart);
       final end = DateTime.parse(session.classFinish);
       buffer.writeln(
-          '${i + 1}. ${session.description} (${_formatDateTime(start)} - ${_formatDateTime(end)})');
+        '${i + 1}. ${session.description} (${_formatDateTime(start)} - ${_formatDateTime(end)})',
+      );
     }
     return buffer.toString();
   }

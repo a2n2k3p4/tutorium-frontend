@@ -27,11 +27,11 @@ class ConnectivityService {
     _updateConnectionStatus(result);
 
     // ติดตามการเปลี่ยนแปลงของสถานะการเชื่อมต่อ
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
-      (List<ConnectivityResult> result) {
-        _updateConnectionStatus(result);
-      },
-    );
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
+      List<ConnectivityResult> result,
+    ) {
+      _updateConnectionStatus(result);
+    });
   }
 
   /// อัพเดทสถานะการเชื่อมต่อ
@@ -90,11 +90,7 @@ class NoInternetBanner extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.wifi_off,
-            color: Colors.white,
-            size: 24,
-          ),
+          Icon(Icons.wifi_off, color: Colors.white, size: 24),
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
@@ -116,10 +112,7 @@ class NoInternetBanner extends StatelessWidget {
 class ConnectivityWrapper extends StatefulWidget {
   final Widget child;
 
-  const ConnectivityWrapper({
-    super.key,
-    required this.child,
-  });
+  const ConnectivityWrapper({super.key, required this.child});
 
   @override
   State<ConnectivityWrapper> createState() => _ConnectivityWrapperState();
