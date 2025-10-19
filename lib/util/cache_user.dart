@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:tutorium_frontend/service/Users.dart' as user_api;
 import 'package:tutorium_frontend/util/local_storage.dart';
 
-/// UserCache - Singleton class for caching user data
+/// UserCache - Singleton class for caching user data with reactive updates
 class UserCache {
   // Singleton instance
   static final UserCache _instance = UserCache._internal();
@@ -13,6 +14,13 @@ class UserCache {
   // Cached user data
   user_api.User? _cachedUser;
 
+  // Stream controller สำหรับ notify listeners เมื่อข้อมูลเปลี่ยน
+  final StreamController<user_api.User?> _userStreamController =
+      StreamController<user_api.User?>.broadcast();
+
+  /// Stream สำหรับ listen การเปลี่ยนแปลงของ user data
+  Stream<user_api.User?> get userStream => _userStreamController.stream;
+
   /// Get cached user data
   user_api.User? get user => _cachedUser;
 
@@ -23,25 +31,37 @@ class UserCache {
   void saveUser(user_api.User user) {
     _cachedUser = user;
     LocalStorage.saveUserProfile(_userToCacheJson(user));
+    _userStreamController.add(user); // Notify listeners
   }
 
   /// Update user in cache
   void updateUser(user_api.User user) {
     _cachedUser = user;
     LocalStorage.saveUserProfile(_userToCacheJson(user));
+    _userStreamController.add(user); // Notify listeners
   }
 
   /// Clear cache (called on logout)
   void clear() {
     _cachedUser = null;
     LocalStorage.removeUserProfile();
+    _userStreamController.add(null); // Notify listeners
   }
 
-  /// Refresh user data from server
-  Future<user_api.User> refresh(int userId) async {
+  /// Dispose stream controller (call when app is closing)
+  void dispose() {
+    _userStreamController.close();
+  }
+
+  /// Refresh user data from server (ใช้สำหรับ auto-refresh)
+  Future<user_api.User> refresh(int userId, {bool silent = false}) async {
     final user = await user_api.User.fetchById(userId);
     _cachedUser = user;
     LocalStorage.saveUserProfile(_userToCacheJson(user));
+
+    // Notify listeners (แม้เป็น silent refresh ก็ยัง notify)
+    _userStreamController.add(user);
+
     return user;
   }
 
