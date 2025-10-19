@@ -112,18 +112,27 @@ class _UserLoginPageState extends State<UserLoginPage> {
         await LocalStorage.saveUserId(loginResponse.user.id);
         await LocalStorage.saveToken(loginResponse.token);
 
-        // Fetch full user data and save to cache
+        // Fetch full user data and save to cache + local storage
         final fullUser = await user_api.User.fetchById(loginResponse.user.id);
-        UserCache().saveUser(fullUser);
+        UserCache().saveUser(fullUser); // This also saves to LocalStorage
 
-        Navigator.pushAndRemoveUntil(
+        debugPrint('DEBUG Login: User saved to cache and local storage');
+        debugPrint('DEBUG Login: userId=${fullUser.id}, name=${fullUser.firstName}');
+
+        if (!mounted) return;
+
+        Navigator.pushNamedAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => MainNavPage()),
+          '/home',
           (route) => false,
         );
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Login successfully')));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('เข้าสู่ระบบสำเร็จ'),
+            backgroundColor: Colors.green,
+          ),
+        );
       } catch (e) {
         ScaffoldMessenger.of(
           context,

@@ -6,6 +6,33 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+/// Custom InputFormatter to limit maximum amount
+class _MaxAmountInputFormatter extends TextInputFormatter {
+  final double maxAmount;
+
+  _MaxAmountInputFormatter({required this.maxAmount});
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    // Try to parse the new value
+    final parsed = double.tryParse(newValue.text);
+
+    // If can't parse or exceeds max, return old value
+    if (parsed == null || parsed > maxAmount) {
+      return oldValue;
+    }
+
+    return newValue;
+  }
+}
+
 class PaymentScreen extends StatefulWidget {
   final int userId;
 
@@ -263,11 +290,22 @@ class _PaymentScreenState extends State<PaymentScreen>
     final rawInput = _amountController.text.replaceAll(',', '').trim();
     final amountDouble = double.tryParse(rawInput);
 
+    // ตรวจสอบความถูกต้องของจำนวนเงิน
     if (amountDouble == null || amountDouble <= 0) {
       _updateStatus(
         PaymentStatus.failed,
         'จำนวนเงินไม่ถูกต้อง',
         errorDetails: 'กรุณากรอกจำนวนเงินที่ถูกต้อง',
+      );
+      return;
+    }
+
+    // ตรวจสอบไม่เกิน 10,000 บาท
+    if (amountDouble > 10000) {
+      _updateStatus(
+        PaymentStatus.failed,
+        'จำนวนเงินเกินกำหนด',
+        errorDetails: 'จำนวนเงินต้องไม่เกิน 10,000 บาทต่อครั้ง',
       );
       return;
     }
@@ -643,9 +681,12 @@ class _PaymentScreenState extends State<PaymentScreen>
                             signed: false,
                           ),
                           inputFormatters: [
+                            // อนุญาตเฉพาะตัวเลขและจุดทศนิยม (ห้ามติดลบ)
                             FilteringTextInputFormatter.allow(
                               RegExp(r'^\d*\.?\d{0,2}'),
                             ),
+                            // จำกัดจำนวนเงินไม่เกิน 10000
+                            _MaxAmountInputFormatter(maxAmount: 10000),
                           ],
                           decoration: InputDecoration(
                             hintText: '0.00',
@@ -706,15 +747,54 @@ class _PaymentScreenState extends State<PaymentScreen>
                             if (parsed <= 0) {
                               return 'จำนวนเงินต้องมากกว่า 0 บาท';
                             }
+                            if (parsed > 10000) {
+                              return 'จำนวนเงินต้องไม่เกิน 10,000 บาท';
+                            }
                             return null;
                           },
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 12),
+                        // Warning text
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.orange.shade200,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.orange.shade700,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'จำกัดการเติมเงินไม่เกิน 10,000 บาทต่อครั้ง',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange.shade700,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         // Quick amount buttons
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: [50, 100, 200, 500, 1000].map((amount) {
+                          children: [50, 100, 200, 500, 1000, 5000, 10000]
+                              .map((amount) {
                             return InkWell(
                               onTap: () =>
                                   _amountController.text = amount.toString(),
@@ -732,7 +812,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                                   ),
                                 ),
                                 child: Text(
-                                  '฿$amount',
+                                  '฿${amount >= 1000 ? '${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}K' : amount}',
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,

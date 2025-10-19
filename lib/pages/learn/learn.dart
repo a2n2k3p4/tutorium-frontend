@@ -1,8 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tutorium_frontend/pages/learn/mandatory_review_page.dart';
+import 'package:tutorium_frontend/service/ClassSessions.dart' as class_sessions;
+import 'package:tutorium_frontend/service/class_readiness_service.dart';
+import 'package:tutorium_frontend/util/local_storage.dart';
 
 class _JitsiMeetingConfig {
   const _JitsiMeetingConfig({
@@ -51,6 +56,8 @@ class _LearnPageState extends State<LearnPage>
   bool _isLoading = true;
   bool _showChat = false;
   String? _errorMessage;
+  bool _isCopyingLink = false;
+  bool _hasCopiedLink = false;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -59,12 +66,29 @@ class _LearnPageState extends State<LearnPage>
 
   String? _userName;
   String? _userEmail;
+  int? _userId;
+  int? _learnerId;
+
+  class_sessions.ClassSession? _classSession;
+  DateTime? _classStart;
+  DateTime? _classFinish;
+  Timer? _countdownTimer;
+  Timer? _broadcastTimer;
+  Timer? _copyResetTimer;
+  Duration? _timeUntilStart;
+  bool _teacherReady = false;
+  bool _learnerReady = false;
+  bool _hasBroadcastReady = false;
+  bool _isClassCompleted = false;
+  bool _reviewShown = false;
+  bool _isMarkingReady = false;
+  bool _isMarkingLearnerReady = false;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimation();
-    _loadUserData();
+    _initializePage();
   }
 
   void _initializeAnimation() {
@@ -79,20 +103,600 @@ class _LearnPageState extends State<LearnPage>
     _animationController.forward();
   }
 
+  Future<void> _initializePage() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
+    try {
+      await _loadUserData();
+      await _loadSessionInformation();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _loadUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final storedName = prefs.getString('userName') ?? 'Student';
+      final storedEmail = prefs.getString('userEmail') ?? 'student@ku.th';
+      final userId = await LocalStorage.getUserId();
+      final learnerId = await LocalStorage.getLearnerId();
+      final readyKey = _learnerReadyPrefKey(learnerId);
+      final storedReady = readyKey != null
+          ? prefs.getBool(readyKey) ?? false
+          : false;
+
+      if (!mounted) return;
+
       setState(() {
-        _userName = prefs.getString('userName') ?? 'Student';
-        _userEmail = prefs.getString('userEmail') ?? 'student@ku.th';
-        _isLoading = false;
+        _userName = storedName;
+        _userEmail = storedEmail;
+        _userId = userId;
+        _learnerId = learnerId;
+        if (storedReady) {
+          _learnerReady = true;
+        }
+        if (!widget.isTeacher && learnerId == null) {
+          _errorMessage = 'ไม่พบ Learner ID โปรดเข้าสู่ระบบใหม่';
+        }
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Failed to load user data: $e';
-        _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadSessionInformation() async {
+    try {
+      final session = await class_sessions.ClassSession.fetchById(
+        widget.classSessionId,
+      );
+
+      final normalized = ClassReadinessService.normalizeStatus(
+        session.classStatus,
+      );
+      final start = _parseDateTime(session.classStart);
+      final finish = _parseDateTime(session.classFinish);
+      final teacherReady =
+          normalized == ClassReadinessService.statusTeacherReady ||
+          normalized == ClassReadinessService.statusLive ||
+          normalized == ClassReadinessService.statusCompleted;
+      final isCompleted = normalized == ClassReadinessService.statusCompleted;
+      final broadcastAlready =
+          normalized == ClassReadinessService.statusLive ||
+          normalized == ClassReadinessService.statusCompleted;
+
+      if (!mounted) return;
+
+      setState(() {
+        _classSession = session;
+        _classStart = start;
+        _classFinish = finish;
+        _teacherReady = teacherReady;
+        _isClassCompleted = isCompleted;
+        if (broadcastAlready) {
+          _hasBroadcastReady = true;
+        }
+      });
+
+      _startCountdown();
+      _scheduleBroadcastTimer();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'ไม่สามารถโหลดข้อมูลคลาสได้: $e';
+      });
+    }
+  }
+
+  DateTime? _parseDateTime(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    try {
+      final parsed = DateTime.parse(raw);
+      return parsed.isUtc ? parsed.toLocal() : parsed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _updateCountdown();
+    if (_classStart == null) {
+      return;
+    }
+    _countdownTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _updateCountdown();
+    });
+  }
+
+  void _updateCountdown() {
+    if (!mounted) return;
+
+    if (_classStart == null) {
+      setState(() {
+        _timeUntilStart = null;
+      });
+      return;
+    }
+
+    final now = DateTime.now();
+    final diff = _classStart!.difference(now);
+
+    setState(() {
+      _timeUntilStart = diff;
+    });
+
+    _checkBroadcastCondition(now);
+  }
+
+  void _checkBroadcastCondition(DateTime now) {
+    if (!widget.isTeacher) return;
+    if (_hasBroadcastReady) return;
+    if (!_teacherReady) return;
+    if (_classStart == null) return;
+
+    final broadcastTime = _classStart!.subtract(const Duration(minutes: 5));
+    if (!now.isBefore(broadcastTime)) {
+      _broadcastTeacherReady();
+    }
+  }
+
+  void _scheduleBroadcastTimer() {
+    _broadcastTimer?.cancel();
+
+    if (!widget.isTeacher) return;
+    if (_hasBroadcastReady) return;
+    if (!_teacherReady) return;
+    if (_classStart == null) return;
+
+    final now = DateTime.now();
+    final broadcastTime = _classStart!.subtract(const Duration(minutes: 5));
+
+    if (!now.isBefore(broadcastTime)) {
+      _broadcastTeacherReady();
+      return;
+    }
+
+    final delay = broadcastTime.difference(now);
+    _broadcastTimer = Timer(delay, () {
+      _broadcastTeacherReady();
+    });
+  }
+
+  Future<void> _broadcastTeacherReady() async {
+    if (!widget.isTeacher) return;
+    if (_hasBroadcastReady) return;
+    if (_classSession == null) return;
+
+    _broadcastTimer?.cancel();
+
+    try {
+      await ClassReadinessService.broadcastTeacherReady(
+        classSessionId: widget.classSessionId,
+        className: widget.className,
+        teacherName: widget.teacherName,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _hasBroadcastReady = true;
+      });
+
+      _showSnackBar(
+        'แจ้งผู้เรียนแล้วว่าคลาสพร้อมเริ่ม',
+        Icons.campaign_rounded,
+        Colors.purple.shade600,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorDialog('ส่งประกาศไม่สำเร็จ: $e');
+    }
+  }
+
+  Future<void> _handleTeacherReady() async {
+    if (_teacherReady) {
+      _showSnackBar(
+        'ประกาศสถานะ "พร้อมสอน" แล้ว',
+        Icons.check_circle_outline,
+        Colors.purple.shade400,
+      );
+      return;
+    }
+
+    if (!_isTeacherWindowOpen()) {
+      _showErrorDialog('กดพร้อมสอนได้ล่วงหน้า 10 นาทีเท่านั้น');
+      return;
+    }
+
+    if (_classSession == null) {
+      await _loadSessionInformation();
+    }
+
+    if (_classSession == null) {
+      _showErrorDialog('ไม่พบข้อมูลคลาสสำหรับตั้งค่าพร้อมสอน');
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isMarkingReady = true;
+      });
+    }
+
+    final wasLate = _isTeacherTooLateToMarkReady();
+
+    try {
+      final updated = await ClassReadinessService.markTeacherReady(
+        _classSession!,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _classSession = updated;
+        _teacherReady = true;
+        _isClassCompleted =
+            ClassReadinessService.normalizeStatus(updated.classStatus) ==
+            ClassReadinessService.statusCompleted;
+      });
+
+      _scheduleBroadcastTimer();
+
+      final message = wasLate
+          ? 'ตั้งสถานะพร้อมสอนแล้ว (เกินเวลา 10 นาที)'
+          : 'ตั้งสถานะพร้อมสอนแล้ว';
+
+      _showSnackBar(message, Icons.school_rounded, Colors.purple.shade600);
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorDialog('ตั้งค่าว่าพร้อมสอนไม่สำเร็จ: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isMarkingReady = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleLearnerReady() async {
+    if (_learnerReady) {
+      _showSnackBar(
+        'ยืนยันแล้วว่าพร้อมเรียน',
+        Icons.check_circle_outline,
+        Colors.blue.shade500,
+      );
+      return;
+    }
+
+    if (!_teacherReady) {
+      _showErrorDialog('รอผู้สอนกดยืนยันว่าพร้อมก่อน');
+      return;
+    }
+
+    if (!_isLearnerReadyWindowOpen()) {
+      _showErrorDialog('ยืนยันได้ก่อนเวลาเริ่ม 5 นาที');
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isMarkingLearnerReady = true;
+      });
+    }
+
+    try {
+      if (!mounted) return;
+      setState(() {
+        _learnerReady = true;
+      });
+      await _persistLearnerReady(true);
+      _showSnackBar(
+        'พร้อมเข้าเรียนแล้ว! กดเข้าห้องได้เลย',
+        Icons.emoji_emotions_rounded,
+        Colors.blue.shade600,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isMarkingLearnerReady = false;
+        });
+      }
+    }
+  }
+
+  String? _learnerReadyPrefKey(int? learnerId) {
+    if (learnerId == null) return null;
+    return 'learner_ready_${widget.classSessionId}_$learnerId';
+  }
+
+  Future<void> _persistLearnerReady(bool value) async {
+    final key = _learnerReadyPrefKey(_learnerId);
+    if (key == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
+
+  bool get _isTeacher => widget.isTeacher;
+
+  bool _isTeacherWindowOpen() {
+    if (_classStart == null) return true;
+    final now = DateTime.now();
+    final earliest = _classStart!.subtract(const Duration(minutes: 10));
+    return !now.isBefore(earliest);
+  }
+
+  bool _isTeacherTooLateToMarkReady() {
+    if (_classStart == null) return false;
+    final latest = _classStart!.add(const Duration(minutes: 10));
+    return DateTime.now().isAfter(latest);
+  }
+
+  bool _isLearnerReadyWindowOpen() {
+    if (_classStart == null) return true;
+    final now = DateTime.now();
+    final openAt = _classStart!.subtract(const Duration(minutes: 5));
+    return !now.isBefore(openAt);
+  }
+
+  bool _canLearnerLeave() {
+    if (_isClassCompleted) return true;
+    if (_classFinish == null) return true;
+    return !DateTime.now().isBefore(_classFinish!);
+  }
+
+  bool _canJoinClass() {
+    return _joinDisabledReason() == null;
+  }
+
+  String? _joinDisabledReason() {
+    if (widget.jitsiMeetingUrl.trim().isEmpty) {
+      return 'ไม่พบลิงก์ห้องเรียนจากระบบ';
+    }
+
+    if (_isTeacher) {
+      if (!_teacherReady) {
+        return 'กดปุ่ม "พร้อมสอน" เพื่อเปิดห้อง';
+      }
+      return null;
+    }
+
+    if (!_teacherReady) {
+      return 'รอผู้สอนกดยืนยันว่าพร้อมเริ่มคลาส';
+    }
+
+    if (!_learnerReady) {
+      return 'กดปุ่ม "ฉันพร้อมเรียน" ก่อนเข้าห้อง';
+    }
+
+    if (!_isLearnerReadyWindowOpen()) {
+      return 'เข้าห้องได้ก่อนเวลาเริ่ม 5 นาที';
+    }
+
+    return null;
+  }
+
+  bool _hasValidMeetingLink() => widget.jitsiMeetingUrl.trim().isNotEmpty;
+
+  Future<void> _copyMeetingLink() async {
+    final link = widget.jitsiMeetingUrl.trim();
+
+    if (link.isEmpty) {
+      _showSnackBar(
+        'ไม่พบลิงก์ห้องเรียน',
+        Icons.link_off_rounded,
+        Colors.red.shade400,
+      );
+      return;
+    }
+
+    _copyResetTimer?.cancel();
+
+    if (mounted) {
+      setState(() {
+        _isCopyingLink = true;
+        _hasCopiedLink = false;
+      });
+    }
+
+    try {
+      await Clipboard.setData(ClipboardData(text: link));
+
+      if (!mounted) return;
+
+      setState(() {
+        _hasCopiedLink = true;
+      });
+
+      _showSnackBar(
+        'คัดลอกลิงก์ห้องเรียนแล้ว',
+        Icons.check_circle_rounded,
+        Colors.green.shade500,
+      );
+
+      _copyResetTimer = Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() {
+          _hasCopiedLink = false;
+        });
+      });
+    } catch (error) {
+      debugPrint('Failed to copy meeting link: $error');
+
+      if (mounted) {
+        _showSnackBar(
+          'คัดลอกลิงก์ไม่สำเร็จ โปรดลองอีกครั้ง',
+          Icons.error_outline,
+          Colors.red.shade400,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCopyingLink = false;
+        });
+      }
+    }
+  }
+
+  String _formatCountdown(Duration? duration) {
+    if (duration == null) {
+      return '--:--:--';
+    }
+    final abs = duration.abs();
+    final hours = abs.inHours;
+    final minutes = abs.inMinutes.remainder(60);
+    final seconds = abs.inSeconds.remainder(60);
+    final prefix = duration.isNegative ? '-' : '';
+    return '$prefix${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDateTimeDisplay(DateTime? dt) {
+    if (dt == null) return '-';
+    final date = dt;
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year $hour:$minute น.';
+  }
+
+  Future<void> _refreshSessionStatus() async {
+    try {
+      await _loadSessionInformation();
+    } catch (_) {
+      // Ignore refresh errors; UI already shows latest known state.
+    }
+  }
+
+  Future<void> _onConferenceJoined() async {
+    if (!widget.isTeacher) return;
+    if (_classSession == null) return;
+
+    try {
+      final updated = await ClassReadinessService.markClassLive(_classSession!);
+      if (!mounted) return;
+      setState(() {
+        _classSession = updated;
+        _isClassCompleted =
+            ClassReadinessService.normalizeStatus(updated.classStatus) ==
+            ClassReadinessService.statusCompleted;
+      });
+    } catch (e) {
+      debugPrint('❌ [LearnPage] Failed to mark class live: $e');
+    }
+  }
+
+  Future<void> _maybeMarkClassCompleted() async {
+    if (!widget.isTeacher) return;
+    if (_classSession == null) return;
+
+    final shouldComplete =
+        _isClassCompleted ||
+        (_classFinish != null && !DateTime.now().isBefore(_classFinish!));
+
+    if (!shouldComplete) return;
+
+    try {
+      final updated = await ClassReadinessService.markClassCompleted(
+        _classSession!,
+      );
+      if (!mounted) return;
+      setState(() {
+        _classSession = updated;
+        _isClassCompleted = true;
+      });
+    } catch (e) {
+      debugPrint('❌ [LearnPage] Failed to mark class complete: $e');
+    }
+  }
+
+  Future<void> _handleConferenceTerminated(Object? error) async {
+    await _refreshSessionStatus();
+
+    if (widget.isTeacher) {
+      await _maybeMarkClassCompleted();
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    if (!_canLearnerLeave()) {
+      if (mounted) {
+        _showErrorDialog('คลาสยังไม่จบ ระบบจะพาคุณกลับเข้าเรียน');
+      }
+      await Future.delayed(const Duration(seconds: 1));
+      await _joinConference();
+      return;
+    }
+
+    await _openMandatoryReview();
+  }
+
+  Future<void> _handleReadyToClose() async {
+    await _handleConferenceTerminated(null);
+  }
+
+  Future<void> _openMandatoryReview() async {
+    if (_reviewShown) {
+      return;
+    }
+
+    if (_learnerId == null) {
+      if (mounted) {
+        _showErrorDialog('ไม่พบ Learner ID สำหรับสร้างรีวิว');
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+      return;
+    }
+
+    if (_classSession == null) {
+      await _loadSessionInformation();
+    }
+
+    final classId = _classSession?.classId ?? 0;
+    if (classId == 0) {
+      if (mounted) {
+        _showErrorDialog('ไม่พบ Class ID สำหรับรีวิว');
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+      return;
+    }
+
+    _reviewShown = true;
+
+    var submitted = false;
+    while (!submitted && mounted) {
+      final result = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (context) => MandatoryReviewPage(
+            classId: classId,
+            className: widget.className,
+            learnerId: _learnerId!,
+          ),
+        ),
+      );
+      submitted = result == true;
+    }
+
+    if (!mounted) return;
+
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   // Event listener for Jitsi Meet
@@ -106,6 +710,7 @@ class _LearnPageState extends State<LearnPage>
           _errorMessage = null;
         });
         _startSessionTimer();
+        unawaited(_onConferenceJoined());
       }
     },
     conferenceTerminated: (url, error) {
@@ -117,6 +722,7 @@ class _LearnPageState extends State<LearnPage>
           _chatMessages.clear();
         });
         _stopSessionTimer();
+        unawaited(_handleConferenceTerminated(error));
         if (error != null) {
           _showErrorDialog('Conference ended with error: $error');
         }
@@ -218,10 +824,7 @@ class _LearnPageState extends State<LearnPage>
     },
     readyToClose: () {
       debugPrint('🚪 Ready to close');
-      if (mounted) {
-        // Navigate back to home page
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
+      unawaited(_handleReadyToClose());
     },
   );
 
@@ -241,9 +844,19 @@ class _LearnPageState extends State<LearnPage>
 
   // Join Conference - Full Jitsi SDK with ALL features enabled
   Future<void> _joinConference() async {
+    final reason = _joinDisabledReason();
+    if (reason != null) {
+      _showErrorDialog(reason);
+      return;
+    }
+
     if (_userName == null || _userEmail == null) {
       _showErrorDialog('กรุณาตรวจสอบข้อมูลผู้ใช้');
       return;
+    }
+
+    if (_classSession == null) {
+      await _loadSessionInformation();
     }
 
     final meetingConfig = _parseJitsiMeetingUrl(widget.jitsiMeetingUrl);
@@ -374,6 +987,13 @@ class _LearnPageState extends State<LearnPage>
       debugPrint('📧 Email: $_userEmail');
       debugPrint('🎬 Room: ${meetingConfig.roomName}');
       debugPrint('🌐 Server: ${meetingConfig.serverUrl}');
+
+      if (!widget.isTeacher && !_learnerReady) {
+        setState(() {
+          _learnerReady = true;
+        });
+        unawaited(_persistLearnerReady(true));
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -427,6 +1047,11 @@ class _LearnPageState extends State<LearnPage>
 
   // Leave Conference
   Future<void> _leaveConference() async {
+    if (!widget.isTeacher && !_canLearnerLeave()) {
+      _showErrorDialog('คลาสยังไม่จบ ไม่สามารถออกก่อนเวลาได้');
+      return;
+    }
+
     final shouldLeave = await _showLeaveDialog();
     if (shouldLeave == true) {
       try {
@@ -434,10 +1059,7 @@ class _LearnPageState extends State<LearnPage>
         setState(() {
           _isInConference = false;
         });
-        if (mounted) {
-          // Navigate back to home page
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
+        await _handleConferenceTerminated(null);
       } catch (e) {
         _showErrorDialog('ไม่สามารถออกจากห้องได้: $e');
       }
@@ -590,6 +1212,9 @@ class _LearnPageState extends State<LearnPage>
   void dispose() {
     _animationController.dispose();
     _sessionTimer?.cancel();
+    _countdownTimer?.cancel();
+    _broadcastTimer?.cancel();
+    _copyResetTimer?.cancel();
     super.dispose();
   }
 
@@ -854,131 +1479,20 @@ class _LearnPageState extends State<LearnPage>
                 const SizedBox(height: 24),
 
                 // User Info Card
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      // Avatar
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: widget.isTeacher
-                                ? [Colors.purple.shade100, Colors.pink.shade100]
-                                : [Colors.blue.shade100, Colors.cyan.shade100],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          Icons.account_circle_rounded,
-                          size: 40,
-                          color: widget.isTeacher
-                              ? Colors.purple.shade600
-                              : Colors.blue.shade600,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // User Details
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'เข้าร่วมในนาม',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _userName ?? 'กำลังโหลด...',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _userEmail ?? '',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 13,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildUserInfoCard(),
                 const SizedBox(height: 24),
 
-                // Room Link Info
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: widget.isTeacher
-                          ? Colors.purple.shade200
-                          : Colors.blue.shade200,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.link_rounded,
-                        color: widget.isTeacher
-                            ? Colors.purple.shade600
-                            : Colors.blue.shade600,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'ลิงก์ห้องเรียน',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              roomUrl,
-                              style: TextStyle(
-                                color: Colors.grey.shade800,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                if (_buildCountdownCard() != null) ...[
+                  _buildCountdownCard()!,
+                  const SizedBox(height: 20),
+                ],
+
+                widget.isTeacher
+                    ? _buildTeacherReadyCard()
+                    : _buildLearnerReadyCard(),
+                const SizedBox(height: 24),
+
+                _buildMeetingLinkCard(roomUrl),
                 const SizedBox(height: 32),
 
                 // Error Message
@@ -1016,56 +1530,7 @@ class _LearnPageState extends State<LearnPage>
                   ),
 
                 // Join Button - Big and Beautiful
-                Container(
-                  height: 64,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.green.shade500, Colors.green.shade600],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.green.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                        spreadRadius: -2,
-                      ),
-                    ],
-                  ),
-                  child: ElevatedButton(
-                    onPressed: _joinConference,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      foregroundColor: Colors.white,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.videocam_rounded, size: 28),
-                        ),
-                        const SizedBox(width: 16),
-                        const Text(
-                          'เข้าร่วมห้องเรียนเลย',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                _buildJoinButtonSection(),
                 const SizedBox(height: 16),
 
                 // Back Button - Subtle
@@ -1101,6 +1566,660 @@ class _LearnPageState extends State<LearnPage>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildUserInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: widget.isTeacher
+                    ? [Colors.purple.shade100, Colors.pink.shade100]
+                    : [Colors.blue.shade100, Colors.cyan.shade100],
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.account_circle_rounded,
+              size: 40,
+              color: widget.isTeacher
+                  ? Colors.purple.shade600
+                  : Colors.blue.shade600,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'เข้าร่วมในนาม',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _userName ?? 'กำลังโหลด...',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _userEmail ?? '',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget? _buildCountdownCard() {
+    if (_classStart == null) return null;
+    final statusText = (_timeUntilStart != null && _timeUntilStart!.isNegative)
+        ? 'คลาสเริ่มไปแล้ว'
+        : 'เริ่มใน';
+    final bool isUrgent =
+        _timeUntilStart != null && _timeUntilStart!.inMinutes <= 5;
+    final material = isUrgent ? Colors.orange : Colors.blue;
+    final Color accentTone = material.shade400;
+    final Color strongTone = material.shade700;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [accentTone.withValues(alpha: 0.15), Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accentTone.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: accentTone,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.timer_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    color: strongTone,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _formatCountdown(_timeUntilStart),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: strongTone,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'เริ่มเวลา ${_formatDateTimeDisplay(_classStart)}',
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeacherReadyCard() {
+    final windowOpen = _isTeacherWindowOpen();
+    final tooLate = _isTeacherTooLateToMarkReady();
+    final canPress =
+        !_teacherReady && !_isMarkingReady && windowOpen && !tooLate;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.school_rounded,
+                  size: 22,
+                  color: Colors.purple.shade500,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'เตรียมคลาสให้พร้อม',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: Colors.purple.shade600,
+                ),
+              ),
+              const Spacer(),
+              Chip(
+                backgroundColor: _teacherReady
+                    ? Colors.green.shade100
+                    : Colors.grey.shade200,
+                labelPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 0,
+                ),
+                avatar: Icon(
+                  _teacherReady ? Icons.check_circle : Icons.hourglass_top,
+                  size: 18,
+                  color: _teacherReady
+                      ? Colors.green.shade700
+                      : Colors.grey.shade600,
+                ),
+                label: Text(
+                  _teacherReady ? 'พร้อมแล้ว' : 'ยังไม่พร้อม',
+                  style: TextStyle(
+                    color: _teacherReady
+                        ? Colors.green.shade700
+                        : Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'กดปุ่ม "พร้อมสอน" อย่างน้อย 10 นาทีก่อนเริ่มห้อง เพื่อให้ผู้เรียนรับทราบและเตรียมตัวเข้าชั้นเรียน',
+            style: TextStyle(
+              color: Colors.blueGrey.shade600,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: canPress ? _handleTeacherReady : null,
+              icon: _isMarkingReady
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.rocket_launch_rounded),
+              label: Text(
+                _teacherReady ? 'พร้อมสอนแล้ว' : 'กดพร้อมสอน',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _teacherReady
+                    ? Colors.green.shade500
+                    : Colors.purple.shade500,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (!windowOpen && !_teacherReady)
+            Text(
+              'กดได้ตั้งแต่ ${_classStart != null ? _formatDateTimeDisplay(_classStart!.subtract(const Duration(minutes: 10))) : '-'}',
+              style: TextStyle(color: Colors.red.shade400, fontSize: 12),
+            ),
+          if (tooLate && !_teacherReady)
+            Text(
+              'เลยเวลาเริ่มคลาสเกิน 10 นาทีแล้ว โปรดรีบกดพร้อมและเข้าห้อง',
+              style: TextStyle(color: Colors.orange.shade600, fontSize: 12),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLearnerReadyCard() {
+    final canPress = !_learnerReady && !_isMarkingLearnerReady && _teacherReady;
+    final windowOpen = _isLearnerReadyWindowOpen();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.self_improvement_rounded,
+                  size: 22,
+                  color: Colors.blue.shade500,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'เตรียมตัวก่อนเข้าเรียน',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: Colors.blue.shade600,
+                ),
+              ),
+              const Spacer(),
+              Chip(
+                backgroundColor: _teacherReady
+                    ? Colors.green.shade100
+                    : Colors.orange.shade100,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                avatar: Icon(
+                  _teacherReady ? Icons.check_circle : Icons.access_time,
+                  size: 18,
+                  color: _teacherReady
+                      ? Colors.green.shade700
+                      : Colors.orange.shade700,
+                ),
+                label: Text(
+                  _teacherReady ? 'ครูพร้อมแล้ว' : 'รอผู้สอน',
+                  style: TextStyle(
+                    color: _teacherReady
+                        ? Colors.green.shade700
+                        : Colors.orange.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'กดปุ่ม "ฉันพร้อมเรียน" ก่อนเริ่ม 5 นาที เพื่อให้ระบบเตรียมห้องเรียนและล็อกอินชื่อของคุณให้ตรงกับแอป',
+            style: TextStyle(
+              color: Colors.blueGrey.shade600,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: (canPress && windowOpen) ? _handleLearnerReady : null,
+              icon: _isMarkingLearnerReady
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.emoji_emotions_rounded),
+              label: Text(
+                _learnerReady ? 'พร้อมเรียนแล้ว' : 'ฉันพร้อมเรียน',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _learnerReady
+                    ? Colors.green.shade500
+                    : Colors.blue.shade500,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'สายเท่าไรก็ได้ แต่ถ้าออกก่อนจบคลาส ระบบจะพากลับเข้าห้องเรียนอัตโนมัติ',
+            style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 12),
+          ),
+          if (!windowOpen && !_learnerReady)
+            Text(
+              'กดได้เมื่อถึงช่วง 5 นาทีก่อนเริ่มคลาส',
+              style: TextStyle(color: Colors.orange.shade600, fontSize: 12),
+            ),
+          if (_learnerReady)
+            Text(
+              'เยี่ยม! กดปุ่มเข้าห้องเมื่อพร้อมได้เลย',
+              style: TextStyle(color: Colors.green.shade600, fontSize: 12),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJoinButtonSection() {
+    final disabledReason = _joinDisabledReason();
+    final canJoin = disabledReason == null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          height: 64,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: canJoin
+                  ? [Colors.green.shade500, Colors.green.shade600]
+                  : [Colors.grey.shade300, Colors.grey.shade400],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: (canJoin ? Colors.green : Colors.grey).withValues(
+                  alpha: 0.4,
+                ),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            onPressed: canJoin ? _joinConference : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.videocam_rounded, size: 28),
+                ),
+                const SizedBox(width: 16),
+                const Text(
+                  'เข้าห้องเรียน',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (disabledReason != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            disabledReason,
+            style: TextStyle(
+              color: Colors.red.shade400,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMeetingLinkCard(String roomUrl) {
+    final hasLink = roomUrl.trim().isNotEmpty;
+    final primaryColor = widget.isTeacher
+        ? Colors.purple.shade600
+        : Colors.blue.shade600;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: primaryColor.withValues(alpha: 0.18),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.14),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      primaryColor.withValues(alpha: 0.12),
+                      primaryColor.withValues(alpha: 0.04),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(Icons.link_rounded, color: primaryColor, size: 26),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'ลิงก์ห้องเรียน',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'แชร์หรือเปิดผ่านเบราว์เซอร์ได้โดยคัดลอกอัตโนมัติทั้งบนมือถือและเว็บ',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: hasLink && !_isCopyingLink ? _copyMeetingLink : null,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: primaryColor.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: primaryColor.withValues(alpha: 0.18)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      hasLink ? roomUrl : 'รอลิงก์จากระบบ',
+                      style: TextStyle(
+                        color: hasLink
+                            ? Colors.grey.shade900
+                            : Colors.grey.shade600,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                      maxLines: 2,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _isCopyingLink
+                        ? SizedBox(
+                            key: const ValueKey('copying'),
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.6,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                primaryColor,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            _hasCopiedLink
+                                ? Icons.check_circle_rounded
+                                : Icons.copy_rounded,
+                            key: ValueKey(_hasCopiedLink ? 'copied' : 'copy'),
+                            color: _hasCopiedLink
+                                ? Colors.green.shade500
+                                : primaryColor,
+                            size: 24,
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (hasLink)
+            FilledButton.tonalIcon(
+              onPressed: _isCopyingLink ? null : _copyMeetingLink,
+              icon: Icon(
+                _hasCopiedLink
+                    ? Icons.task_alt_rounded
+                    : Icons.copy_all_rounded,
+              ),
+              label: Text(
+                _hasCopiedLink ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์ห้องเรียน',
+              ),
+              style: FilledButton.styleFrom(
+                foregroundColor: primaryColor,
+                backgroundColor: primaryColor.withValues(
+                  alpha: _hasCopiedLink ? 0.24 : 0.12,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          if (hasLink)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                _hasCopiedLink
+                    ? 'คัดลอกสำเร็จ! วางลิงก์นี้บนเบราว์เซอร์หรือส่งให้เพื่อนได้เลย'
+                    : 'แตะที่กล่องลิงก์หรือปุ่มคัดลอก ระบบจะบันทึกลงคลิปบอร์ดให้อัตโนมัติ',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+              ),
+            ),
+          if (!hasLink)
+            Text(
+              'ยังไม่มีลิงก์จากระบบ โปรดตรวจสอบกับผู้ดูแลหรือผู้สอน',
+              style: TextStyle(
+                color: Colors.red.shade400,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+        ],
       ),
     );
   }

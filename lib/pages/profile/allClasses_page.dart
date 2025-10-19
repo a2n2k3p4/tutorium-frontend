@@ -1,32 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
-import 'package:tutorium_frontend/pages/profile/profile_page.dart';
+import 'package:tutorium_frontend/service/Classes.dart' as class_api;
 
 class AllClassesPage extends StatelessWidget {
-  final List<Class> myClasses;
+  final List<class_api.ClassInfo> myClasses;
+  final String? errorMessage;
 
-  const AllClassesPage({super.key, required this.myClasses});
+  const AllClassesPage({super.key, required this.myClasses, this.errorMessage});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("All Classes")),
-      body: myClasses.isNotEmpty
-          ? ListView.builder(
+      body: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Builder(
+          builder: (context) {
+            if (errorMessage != null && errorMessage!.isNotEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    errorMessage!,
+                    style: TextStyle(
+                      color: Colors.red.shade400,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            }
+
+            if (myClasses.isEmpty) {
+              return const Center(child: Text("No classes found"));
+            }
+
+            return ListView.builder(
               itemCount: myClasses.length,
               itemBuilder: (context, index) {
                 final c = myClasses[index];
+                final teacherName = c.teacherName?.trim().isNotEmpty == true
+                    ? c.teacherName!
+                    : '';
                 return ClassCard(
                   id: c.id,
                   className: c.className,
-                  teacherName: c.teacherName,
-                  rating: c.rating ?? 0.0,
-                  enrolledLearner: 100, // replace with real data
-                  imagePath: "assets/images/guitar.jpg", // wait for real image
+                  teacherName: teacherName.isEmpty
+                      ? 'ไม่ทราบชื่อผู้สอน'
+                      : teacherName,
+                  rating: c.rating,
+                  enrolledLearner: c.enrolledLearners,
+                  imageUrl: c.bannerPicture.isNotEmpty ? c.bannerPicture : null,
                 );
               },
-            )
-          : const Center(child: Text("No classes found")),
+            );
+          },
+        ),
+      ),
     );
   }
 }
