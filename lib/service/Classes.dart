@@ -1,25 +1,54 @@
 import 'package:tutorium_frontend/service/api_client.dart';
 
 class ClassInfo {
+  final int id;
   final String bannerPicture;
   final String classDescription;
   final String className;
   final double rating;
   final int teacherId;
+  final String? teacherName;
+  final int? enrolledLearners;
   final List<String> categories;
 
   ClassInfo({
+    required this.id,
     required this.bannerPicture,
     required this.classDescription,
     required this.className,
     required this.rating,
     required this.teacherId,
+    this.teacherName,
+    this.enrolledLearners,
     this.categories = const [],
   });
 
   factory ClassInfo.fromJson(Map<String, dynamic> json) {
     final rawCategories = json['Categories'] ?? json['categories'];
+    final teacher = json['Teacher'] as Map<String, dynamic>?;
+    final teacherFirstName =
+        teacher?['first_name'] ?? json['teacher_first_name'];
+    final teacherLastName = teacher?['last_name'] ?? json['teacher_last_name'];
+    final rawTeacherName = json['teacher_name'] ?? json['teacherName'];
+
+    String? teacherName;
+    if (rawTeacherName is String && rawTeacherName.trim().isNotEmpty) {
+      teacherName = rawTeacherName.trim();
+    } else if (teacherFirstName != null || teacherLastName != null) {
+      teacherName = '${teacherFirstName ?? ''} ${teacherLastName ?? ''}'
+          .trim()
+          .replaceAll(RegExp(r'\s{2,}'), ' ');
+      if (teacherName.isEmpty) teacherName = null;
+    }
+
+    final enrolled =
+        json['enrolled_learners'] ??
+        json['enrolledLearners'] ??
+        json['enrollment_count'] ??
+        json['learner_count'];
+
     return ClassInfo(
+      id: json['ID'] ?? json['id'] ?? 0,
       bannerPicture: json['banner_picture'] ?? json['banner_picture_url'] ?? '',
       classDescription: json['class_description'] ?? '',
       className: json['class_name'] ?? '',
@@ -27,6 +56,10 @@ class ClassInfo {
           ? (json['rating'] as num).toDouble()
           : double.tryParse('${json['rating']}') ?? 0,
       teacherId: json['teacher_id'] ?? json['Teacher']?['user_id'] ?? 0,
+      teacherName: teacherName,
+      enrolledLearners: enrolled is num
+          ? enrolled.toInt()
+          : int.tryParse('$enrolled'),
       categories: rawCategories is List
           ? rawCategories
                 .map(
@@ -42,11 +75,14 @@ class ClassInfo {
 
   Map<String, dynamic> toJson() {
     return {
+      if (id != 0) 'id': id,
       'banner_picture': bannerPicture,
       'class_description': classDescription,
       'class_name': className,
       'rating': rating,
       'teacher_id': teacherId,
+      if (teacherName != null) 'teacher_name': teacherName,
+      if (enrolledLearners != null) 'enrolled_learners': enrolledLearners,
       if (categories.isNotEmpty) 'categories': categories,
     };
   }

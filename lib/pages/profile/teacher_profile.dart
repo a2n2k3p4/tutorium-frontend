@@ -1,9 +1,11 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
+import 'package:tutorium_frontend/service/Classes.dart' as class_api;
+import 'package:tutorium_frontend/service/Teachers.dart' as teacher_api;
+import 'package:tutorium_frontend/service/Users.dart' as user_api;
+import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
 
 class TeacherProfilePage extends StatefulWidget {
   final int teacherId;
@@ -15,13 +17,12 @@ class TeacherProfilePage extends StatefulWidget {
 }
 
 class _TeacherProfilePageState extends State<TeacherProfilePage> {
-  UserInfo? userInfo;
-  Map<String, dynamic>? teacherInfo;
-  List<ClassInfo> teacherClasses = [];
+  user_api.User? teacherUser;
+  teacher_api.Teacher? teacher;
+  List<class_api.ClassInfo> teacherClasses = [];
   bool isLoading = true;
   bool showAllClasses = false;
-
-  final baseUrl = '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}';
+  String? errorMessage;
 
   @override
   void initState() {
@@ -30,48 +31,81 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   }
 
   Future<void> loadData() async {
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+    } else {
+      isLoading = true;
+      errorMessage = null;
+    }
+
     try {
-      final teacherUrl = Uri.parse("$baseUrl/teachers/${widget.teacherId}");
-      final teacherRes = await http.get(teacherUrl);
-      if (teacherRes.statusCode != 200)
-        throw Exception("Failed to load teacher");
-
-      final teacherData = json.decode(teacherRes.body);
-      final userId = teacherData["user_id"];
-
-      final userUrl = Uri.parse("$baseUrl/users/$userId");
-      final userRes = await http.get(userUrl);
-      if (userRes.statusCode != 200)
-        throw Exception("Failed to load user info");
-
-      final userData = json.decode(userRes.body);
-      final user = UserInfo.fromJson(userData);
-
-      final classUrl = Uri.parse(
-        "$baseUrl/classes?teacher_id=${widget.teacherId}",
+      final teacherData = await teacher_api.Teacher.fetchById(widget.teacherId);
+      final user = await user_api.User.fetchById(teacherData.userId);
+      final classes = await class_api.ClassInfo.fetchAll(
+        teacherId: widget.teacherId,
       );
-      final classRes = await http.get(classUrl);
 
-      List<ClassInfo> classes = [];
-      if (classRes.statusCode == 200) {
-        final data = json.decode(classRes.body);
-        if (data is List) {
-          classes = data.map((e) => ClassInfo.fromJson(e)).toList();
-        }
-      }
-
-      // 🧠 Sort by highest rating first
       classes.sort((a, b) => b.rating.compareTo(a.rating));
 
+      if (!mounted) return;
+
       setState(() {
-        teacherInfo = teacherData;
-        userInfo = user;
+        teacher = teacherData;
+        teacherUser = user;
         teacherClasses = classes;
         isLoading = false;
       });
+    } on ApiException catch (e) {
+      debugPrint('Error loading teacher profile (API): $e');
+      if (mounted) {
+        setState(() {
+          errorMessage = 'ไม่สามารถโหลดข้อมูลผู้สอนได้ (${e.statusCode})';
+          teacherClasses = [];
+          isLoading = false;
+        });
+      } else {
+        errorMessage = 'ไม่สามารถโหลดข้อมูลผู้สอนได้ (${e.statusCode})';
+        teacherClasses = [];
+        isLoading = false;
+      }
     } catch (e) {
-      debugPrint("Error loading teacher profile: $e");
-      setState(() => isLoading = false);
+      debugPrint('Error loading teacher profile: $e');
+      if (mounted) {
+        setState(() {
+          errorMessage = 'เกิดข้อผิดพลาดในการโหลดข้อมูลผู้สอน';
+          teacherClasses = [];
+          isLoading = false;
+        });
+      } else {
+        errorMessage = 'เกิดข้อผิดพลาดในการโหลดข้อมูลผู้สอน';
+        teacherClasses = [];
+        isLoading = false;
+      }
+    }
+  }
+
+  ImageProvider<Object>? _avatarImageProvider() {
+    final source = teacherUser?.profilePicture;
+    if (source == null || source.isEmpty) {
+      return null;
+    }
+
+    if (source.startsWith('http')) {
+      return NetworkImage(source);
+    }
+
+    try {
+      final payload = source.startsWith('data:image')
+          ? source.substring(source.indexOf(',') + 1)
+          : source;
+      final bytes = base64Decode(payload);
+      return MemoryImage(bytes);
+    } catch (e) {
+      debugPrint('Failed to decode teacher avatar: $e');
+      return null;
     }
   }
 
@@ -80,12 +114,27 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     final displayedClasses = showAllClasses
         ? teacherClasses
         : teacherClasses.take(2).toList();
+    final avatarProvider = _avatarImageProvider();
 
     return Scaffold(
       appBar: AppBar(title: const Text("Teacher Profile")),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : (userInfo == null || teacherInfo == null)
+          : errorMessage != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  errorMessage!,
+                  style: TextStyle(
+                    color: Colors.red.shade400,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          : (teacherUser == null || teacher == null)
           ? const Center(child: Text("Teacher not found"))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -96,22 +145,28 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                   Center(
                     child: Column(
                       children: [
-                        const CircleAvatar(
+                        CircleAvatar(
                           radius: 50,
-                          backgroundImage: AssetImage(
-                            "assets/images/profile_placeholder.png",
-                          ),
+                          backgroundColor: Colors.grey.shade200,
+                          backgroundImage: avatarProvider,
+                          child: avatarProvider == null
+                              ? Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: Colors.grey.shade500,
+                                )
+                              : null,
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          "${userInfo!.firstName ?? ''} ${userInfo!.lastName ?? ''}",
+                          "${teacherUser!.firstName ?? ''} ${teacherUser!.lastName ?? ''}",
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
-                          userInfo!.gender ?? "Gender not specified",
+                          teacherUser!.gender ?? "Gender not specified",
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -127,9 +182,13 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text("Email: ${teacherInfo!["email"] ?? '-'}"),
+                  Text("Email: ${teacher?.email ?? '-'}"),
                   const SizedBox(height: 8),
-                  Text(teacherInfo!["description"] ?? "No description"),
+                  Text(
+                    teacher?.description?.isNotEmpty == true
+                        ? teacher!.description
+                        : "No description",
+                  ),
 
                   const SizedBox(height: 24),
                   const Divider(),
@@ -140,9 +199,9 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text("Phone: ${userInfo!.phoneNumber ?? '-'}"),
+                  Text("Phone: ${teacherUser!.phoneNumber ?? '-'}"),
                   const SizedBox(height: 4),
-                  Text("Ban Count: ${userInfo!.banCount}"),
+                  Text("Ban Count: ${teacherUser!.banCount}"),
 
                   const SizedBox(height: 24),
                   const Divider(),
@@ -159,17 +218,25 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                       : Column(
                           children: [
                             ...displayedClasses.map((classInfo) {
+                              final teacherName =
+                                  classInfo.teacherName ??
+                                  "${teacherUser!.firstName ?? ''} ${teacherUser!.lastName ?? ''}"
+                                      .trim();
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 8.0,
                                 ),
                                 child: ClassCard(
                                   id: classInfo.id,
-                                  className: classInfo.name,
-                                  teacherName: classInfo.teacherName,
+                                  className: classInfo.className,
+                                  teacherName: teacherName.isEmpty
+                                      ? 'ไม่ทราบชื่อผู้สอน'
+                                      : teacherName,
                                   rating: classInfo.rating,
-                                  enrolledLearner: 100, // placeholder
-                                  imagePath: "assets/images/guitar.jpg",
+                                  enrolledLearner: classInfo.enrolledLearners,
+                                  imageUrl: classInfo.bannerPicture.isNotEmpty
+                                      ? classInfo.bannerPicture
+                                      : null,
                                 ),
                               );
                             }).toList(),

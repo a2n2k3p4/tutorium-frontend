@@ -63,6 +63,37 @@ class ClassSession {
     };
   }
 
+  ClassSession copyWith({
+    String? createdAt,
+    String? updatedAt,
+    String? deletedAt,
+    int? classId,
+    String? description,
+    double? price,
+    int? learnerLimit,
+    String? enrollmentDeadline,
+    String? classStart,
+    String? classFinish,
+    String? classStatus,
+    String? classUrl,
+  }) {
+    return ClassSession(
+      id: id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      classId: classId ?? this.classId,
+      description: description ?? this.description,
+      price: price ?? this.price,
+      learnerLimit: learnerLimit ?? this.learnerLimit,
+      enrollmentDeadline: enrollmentDeadline ?? this.enrollmentDeadline,
+      classStart: classStart ?? this.classStart,
+      classFinish: classFinish ?? this.classFinish,
+      classStatus: classStatus ?? this.classStatus,
+      classUrl: classUrl ?? this.classUrl,
+    );
+  }
+
   static final ApiClient _client = ApiClient();
 
   // ---------- CRUD ----------
