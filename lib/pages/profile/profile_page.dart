@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dart';
-import 'package:tutorium_frontend/pages/profile/allClasses_page.dart';
+import 'package:tutorium_frontend/pages/profile/all_classes_page.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
-import 'package:tutorium_frontend/service/Classes.dart' as class_api;
-import 'package:tutorium_frontend/service/Users.dart' as user_api;
-import 'package:tutorium_frontend/service/Teachers.dart' as teacher_api;
+import 'package:tutorium_frontend/pages/widgets/cached_network_image.dart';
+import 'package:tutorium_frontend/service/classes.dart' as class_api;
+import 'package:tutorium_frontend/service/users.dart' as user_api;
+import 'package:tutorium_frontend/service/teachers.dart' as teacher_api;
 import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
 import 'package:tutorium_frontend/util/cache_user.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
@@ -587,24 +588,39 @@ class _ProfilePageState extends State<ProfilePage> {
                                   child: Stack(
                                     alignment: Alignment.center,
                                     children: [
-                                      CircleAvatar(
-                                        radius: 50,
-                                        backgroundColor: Colors.grey[200],
-                                        backgroundImage: _getImageProvider(
-                                          user?.profilePicture,
-                                        ),
-                                        child:
-                                            _getImageProvider(
-                                                  user?.profilePicture,
-                                                ) ==
-                                                null
-                                            ? const Icon(
-                                                Icons.account_circle_rounded,
-                                                color: Colors.black,
-                                                size: 100,
+                                      // Use cached circular avatar
+                                      user?.profilePicture != null &&
+                                              user!
+                                                  .profilePicture!
+                                                  .isNotEmpty &&
+                                              user!.profilePicture!.startsWith(
+                                                'http',
                                               )
-                                            : null,
-                                      ),
+                                          ? CachedCircularAvatar(
+                                              imageUrl: user!.profilePicture!,
+                                              radius: 50,
+                                              backgroundColor: Colors.grey[200],
+                                            )
+                                          : CircleAvatar(
+                                              radius: 50,
+                                              backgroundColor: Colors.grey[200],
+                                              backgroundImage:
+                                                  _getImageProvider(
+                                                    user?.profilePicture,
+                                                  ),
+                                              child:
+                                                  _getImageProvider(
+                                                        user?.profilePicture,
+                                                      ) ==
+                                                      null
+                                                  ? const Icon(
+                                                      Icons
+                                                          .account_circle_rounded,
+                                                      color: Colors.black,
+                                                      size: 100,
+                                                    )
+                                                  : null,
+                                            ),
                                       if (isUploadingImage)
                                         Container(
                                           decoration: const BoxDecoration(
@@ -1030,9 +1046,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                         : teacherDisplayName,
                                     rating: c.rating,
                                     enrolledLearner: c.enrolledLearners,
-                                    imageUrl: c.bannerPicture.isNotEmpty
-                                        ? c.bannerPicture
-                                        : null,
+                                    imageUrl: (() {
+                                      final image =
+                                          c.bannerPictureUrl ?? c.bannerPicture;
+                                      if (image == null || image.isEmpty) {
+                                        return null;
+                                      }
+                                      return image;
+                                    })(),
                                   );
                                 }).toList(),
                               )

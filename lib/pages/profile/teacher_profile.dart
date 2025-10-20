@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
-import 'package:tutorium_frontend/service/Classes.dart' as class_api;
-import 'package:tutorium_frontend/service/Teachers.dart' as teacher_api;
-import 'package:tutorium_frontend/service/Users.dart' as user_api;
+import 'package:tutorium_frontend/service/classes.dart' as class_api;
+import 'package:tutorium_frontend/service/teachers.dart' as teacher_api;
+import 'package:tutorium_frontend/service/users.dart' as user_api;
 import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
 
 class TeacherProfilePage extends StatefulWidget {
@@ -234,9 +234,15 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                       : teacherName,
                                   rating: classInfo.rating,
                                   enrolledLearner: classInfo.enrolledLearners,
-                                  imageUrl: classInfo.bannerPicture.isNotEmpty
-                                      ? classInfo.bannerPicture
-                                      : null,
+                                  imageUrl: (() {
+                                    final image =
+                                        classInfo.bannerPictureUrl ??
+                                        classInfo.bannerPicture;
+                                    if (image == null || image.isEmpty) {
+                                      return null;
+                                    }
+                                    return image;
+                                  })(),
                                 ),
                               );
                             }).toList(),

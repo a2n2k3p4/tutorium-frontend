@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:tutorium_frontend/service/Reviews.dart' as reviews_service;
+import 'package:tutorium_frontend/service/reviews.dart' as reviews_service;
 
 class MandatoryReviewPage extends StatefulWidget {
   const MandatoryReviewPage({

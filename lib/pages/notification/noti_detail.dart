@@ -7,11 +7,11 @@ class NotiDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print("📄 [DETAIL] Opening notification detail");
-    print("   - ID: ${notification["id"]}");
-    print("   - Title: ${notification["title"]}");
-    print("   - Type: ${notification["type"]}");
-    print("   - Read: ${notification["isRead"]}");
+    debugPrint("📄 [DETAIL] Opening notification detail");
+    debugPrint("   - ID: ${notification["id"]}");
+    debugPrint("   - Title: ${notification["title"]}");
+    debugPrint("   - Type: ${notification["type"]}");
+    debugPrint("   - Read: ${notification["isRead"]}");
 
     return Scaffold(
       appBar: AppBar(

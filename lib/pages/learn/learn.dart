@@ -5,7 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorium_frontend/pages/learn/mandatory_review_page.dart';
-import 'package:tutorium_frontend/service/ClassSessions.dart' as class_sessions;
+import 'package:tutorium_frontend/service/class_sessions.dart'
+    as class_sessions;
 import 'package:tutorium_frontend/service/class_readiness_service.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
 
