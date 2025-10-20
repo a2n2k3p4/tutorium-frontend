@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:tutorium_frontend/service/Users.dart' as user_api;
+import 'package:tutorium_frontend/service/users.dart' as user_api;
 import 'package:tutorium_frontend/util/local_storage.dart';
 
 /// UserCache - Singleton class for caching user data with reactive updates

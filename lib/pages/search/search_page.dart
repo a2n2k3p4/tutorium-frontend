@@ -1,7 +1,12 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_card_search.dart';
 import 'package:tutorium_frontend/pages/widgets/search_service.dart';
+import 'package:tutorium_frontend/pages/widgets/skeleton_loading.dart';
 
 class _MaxValueTextInputFormatter extends TextInputFormatter {
   _MaxValueTextInputFormatter(this.maxValue);
@@ -44,11 +49,18 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final SearchService api = SearchService();
+  final SearchDataStore _dataStore = SearchDataStore.instance;
+  Timer? _searchDebounce;
   List<dynamic> _allClasses = [];
   List<dynamic> _filteredClasses = [];
   List<dynamic> _popularClasses = [];
+  List<_RecommendedClass> _recommendedClasses = [];
+  List<dynamic>? _popularTopCache;
+  List<dynamic>? _popularAllCache;
   bool showAllPopular = false;
   bool isLoading = false;
+  bool _isLoadingRecommended = false;
+  bool _isLoadingPopularToggle = false;
   String currentQuery = "";
 
   List<String> selectedCategories = [];
@@ -101,56 +113,70 @@ class _SearchPageState extends State<SearchPage> {
     _refreshFilterActiveState();
   }
 
-  final List<Map<String, dynamic>> scheduleData = [
-    {
-      'classId': 1,
-      'className': 'Guitar class by Jane',
-      'enrolledLearner': 10,
-      'teacherName': 'Jane Frost',
-      'date': '2025-07-25',
-      'startTime': '13:00',
-      'endTime': '16:00',
-      'imagePath': 'assets/images/guitar.jpg',
-      'rating': 4.5,
-    },
-    {
-      'classId': 2,
-      'className': 'Piano class by Jane',
-      'enrolledLearner': 10,
-      'teacherName': 'Jane Frost',
-      'date': '2025-07-26',
-      'startTime': '13:00',
-      'endTime': '16:00',
-      'imagePath': 'assets/images/piano.jpg',
-      'rating': 4.0,
-    },
-    {
-      'classId': 3,
-      'className': 'Piano class by Jane',
-      'enrolledLearner': 10,
-      'teacherName': 'Jane Frost',
-      'date': '2025-07-26',
-      'startTime': '13:00',
-      'endTime': '16:00',
-      'imagePath': 'assets/images/piano.jpg',
-      'rating': 4.9,
-    },
-  ];
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _dataStore.removeListener(_handleStoreUpdated);
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    _dataStore.addListener(_handleStoreUpdated);
+    _hydrateFromCache();
     _loadClasses();
     _loadPopularClasses();
+    _loadRecommendedSessions();
   }
 
-  Future<void> _loadClasses() async {
-    try {
-      final data = await api.getAllClasses();
+  void _handleStoreUpdated() {
+    if (!mounted) return;
+    setState(_hydrateFromCache);
+  }
+
+  void _hydrateFromCache() {
+    final cachedClasses = _dataStore.allClasses;
+    if (cachedClasses != null && cachedClasses.isNotEmpty) {
+      _allClasses = List<dynamic>.from(cachedClasses);
+      _filteredClasses = api.searchLocal(cachedClasses, currentQuery);
+    }
+
+    final cachedTop = _dataStore.popularTop;
+    final cachedAll = _dataStore.popularAll;
+    _popularTopCache = cachedTop;
+    _popularAllCache = cachedAll;
+
+    if (showAllPopular) {
+      if (cachedAll != null && cachedAll.isNotEmpty) {
+        _popularClasses = List<dynamic>.from(cachedAll);
+      } else if (cachedTop != null && cachedTop.isNotEmpty) {
+        _popularClasses = List<dynamic>.from(cachedTop);
+      }
+    } else if (cachedTop != null && cachedTop.isNotEmpty) {
+      _popularClasses = List<dynamic>.from(cachedTop);
+    }
+  }
+
+  Future<void> _loadClasses({bool forceRefresh = false}) async {
+    final cached = forceRefresh ? null : _dataStore.allClasses;
+    if (cached != null && cached.isNotEmpty) {
       if (!mounted) return;
       setState(() {
-        _allClasses = data;
-        _filteredClasses = api.searchLocal(data, "");
+        _allClasses = List<dynamic>.from(cached);
+        _filteredClasses = api.searchLocal(cached, currentQuery);
+      });
+      return;
+    }
+
+    try {
+      final data = await api.getAllClasses(forceRefresh: forceRefresh);
+      _dataStore.updateAllClasses(data);
+
+      if (!mounted) return;
+      setState(() {
+        _allClasses = List<dynamic>.from(data);
+        _filteredClasses = api.searchLocal(data, currentQuery);
       });
     } catch (_) {
       if (!mounted) return;
@@ -161,24 +187,207 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  Future<void> _loadPopularClasses() async {
+  Future<void> _loadPopularClasses({bool forceRefresh = false}) async {
+    if (!forceRefresh && !showAllPopular) {
+      final cachedTop = _dataStore.popularTop;
+      if (cachedTop != null && cachedTop.isNotEmpty) {
+        if (!mounted) return;
+        setState(() => _popularClasses = List<dynamic>.from(cachedTop));
+        return;
+      }
+    }
+
     try {
-      final data = await api.getPopularClasses(limit: 10);
+      final data = await api.getPopularClasses(
+        limit: 10,
+        forceRefresh: forceRefresh,
+      );
+      _dataStore.updatePopularTop(data);
+
       if (!mounted) return;
       setState(() {
-        _popularClasses = data;
+        _popularClasses = List<dynamic>.from(data);
+        _popularTopCache = data;
       });
     } catch (e) {
-      print("Error loading popular classes: $e");
+      debugPrint("Error loading popular classes: $e");
     }
+  }
+
+  Future<void> _togglePopularView() async {
+    if (_isLoadingPopularToggle) return;
+
+    if (showAllPopular) {
+      final top =
+          _popularTopCache ??
+          _dataStore.popularTop ??
+          (_popularClasses.length > 10
+              ? _popularClasses.take(10).toList()
+              : List<dynamic>.from(_popularClasses));
+      if (!mounted) return;
+      setState(() {
+        showAllPopular = false;
+        _popularClasses = List<dynamic>.from(top);
+      });
+      return;
+    }
+
+    setState(() => _isLoadingPopularToggle = true);
+
+    try {
+      final cachedAll = _popularAllCache ?? _dataStore.popularAll;
+      List<dynamic> data;
+      if (cachedAll != null && cachedAll.isNotEmpty) {
+        data = cachedAll;
+      } else {
+        data = await api.getPopularClasses(forceRefresh: false);
+        _dataStore.updatePopularAll(data);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        showAllPopular = true;
+        _popularAllCache = data;
+        _popularClasses = List<dynamic>.from(data);
+      });
+    } catch (e) {
+      debugPrint('Error toggling popular view: $e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _isLoadingPopularToggle = false);
+    }
+  }
+
+  Future<void> _loadRecommendedSessions() async {
+    setState(() => _isLoadingRecommended = true);
+
+    try {
+      final popularCandidates = await api.getPopularClasses(limit: 8);
+      if (popularCandidates.isEmpty) {
+        if (!mounted) return;
+        setState(() => _recommendedClasses = []);
+        return;
+      }
+
+      final now = DateTime.now();
+      final futures = popularCandidates.take(8).map((classData) async {
+        final dynamic idValue =
+            classData['id'] ?? classData['ID'] ?? classData['class_id'];
+        final classId = _asInt(idValue);
+        if (classId == null || classId == 0) {
+          return null;
+        }
+
+        try {
+          final sessions = await ClassSessionService.getSessionsByClass(
+            classId,
+          );
+          final upcomingSessions =
+              sessions
+                  .where((session) => session.classStart.isAfter(now))
+                  .toList()
+                ..sort((a, b) => a.classStart.compareTo(b.classStart));
+
+          if (upcomingSessions.isEmpty) {
+            return null;
+          }
+
+          final session = upcomingSessions.first;
+          final startLocal = session.classStart.toLocal();
+          final endLocal = session.classFinish.toLocal();
+
+          int? enrolledCount;
+          try {
+            final enrollments =
+                await ClassSessionService.getEnrollmentsBySession(session.id);
+            enrolledCount = enrollments.length;
+          } catch (e) {
+            debugPrint(
+              "Failed to fetch enrollments for session ${session.id}: $e",
+            );
+          }
+
+          final teacherRaw =
+              (classData['teacher_name'] ?? classData['teacherName'] ?? '')
+                  .toString()
+                  .trim();
+          final teacherName = teacherRaw.isEmpty
+              ? 'Unknown Teacher'
+              : teacherRaw;
+
+          final imageUrl =
+              (classData['banner_picture_url'] ??
+                      classData['banner_picture'] ??
+                      classData['imagePath'])
+                  ?.toString();
+
+          final rating = _asDouble(
+            classData['rating'] ?? classData['average_rating'],
+          );
+
+          return _RecommendedClass(
+            classId: classId,
+            sessionId: session.id,
+            className:
+                (classData['class_name'] ??
+                        classData['className'] ??
+                        'Unnamed Class')
+                    .toString(),
+            teacherName: teacherName,
+            date: startLocal,
+            startTime: TimeOfDay.fromDateTime(startLocal),
+            endTime: TimeOfDay.fromDateTime(endLocal),
+            imageUrl: imageUrl,
+            rating: rating,
+            enrolledLearner: enrolledCount,
+            learnerLimit: session.learnerLimit,
+          );
+        } catch (e) {
+          debugPrint('Failed to build recommendation for class $classId: $e');
+          return null;
+        }
+      });
+
+      final results = await Future.wait(futures);
+      final recommendations = results.whereType<_RecommendedClass>().toList(
+        growable: false,
+      )..sort((a, b) => a.date.compareTo(b.date));
+
+      if (!mounted) return;
+      setState(() {
+        _recommendedClasses = recommendations.take(5).toList(growable: false);
+      });
+    } catch (e) {
+      debugPrint('Error loading recommended sessions: $e');
+      if (!mounted) return;
+      setState(() => _recommendedClasses = []);
+    } finally {
+      if (!mounted) return;
+      setState(() => _isLoadingRecommended = false);
+    }
+  }
+
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  double _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
   }
 
   Future<void> _search(String query) async {
     final normalizedQuery = query.trim();
 
-    setState(() {
-      currentQuery = normalizedQuery;
-    });
+    if (currentQuery != normalizedQuery) {
+      setState(() {
+        currentQuery = normalizedQuery;
+      });
+    }
 
     if (!isFilterActive) {
       setState(() {
@@ -212,6 +421,7 @@ class _SearchPageState extends State<SearchPage> {
     final isWhitespaceOnly = normalizedQuery.isEmpty && query.isNotEmpty;
 
     if (isWhitespaceOnly) {
+      _searchDebounce?.cancel();
       setState(() {
         currentQuery = '';
         _filteredClasses = [];
@@ -219,14 +429,22 @@ class _SearchPageState extends State<SearchPage> {
       return;
     }
 
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      _runDebouncedSearch(normalizedQuery);
+    });
+  }
+
+  void _runDebouncedSearch(String normalizedQuery) {
     setState(() {
       currentQuery = normalizedQuery;
+      if (normalizedQuery.isEmpty && !isFilterActive) {
+        _filteredClasses = api.searchLocal(_allClasses, "");
+      }
     });
 
     if (normalizedQuery.isEmpty && !isFilterActive) {
-      setState(() {
-        _filteredClasses = api.searchLocal(_allClasses, "");
-      });
       return;
     }
 
@@ -453,291 +671,391 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    DateTime parseDate(String dateStr) => DateTime.parse(dateStr);
-    TimeOfDay parseTime(String timeStr) {
-      final parts = timeStr.split(':');
-      return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Search Class",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: "Enter class name..",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: _onSearchChanged,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isFilterActive
-                        ? Theme.of(context).colorScheme.secondary
-                        : Theme.of(context).primaryColor,
-                  ),
-                  child: IconButton(
-                    icon: Icon(Icons.filter_list, color: Colors.white),
-                    onPressed: _showFilterOptions,
-                  ),
-                ),
-              ],
-            ),
+    return SearchDataProvider(
+      notifier: _dataStore,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            "Search Class",
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
-
-          if (isFilterActive)
+        ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
+              padding: const EdgeInsets.all(8),
+              child: Row(
                 children: [
-                  if (_categoryFilters.isNotEmpty)
-                    Chip(
-                      label: Text(
-                        "Categories: ${selectedCategories.join(',')}",
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: "Enter class name..",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        prefixIcon: Icon(Icons.search),
                       ),
-                      onDeleted: () {
-                        setState(() {
-                          selectedCategories.clear();
-                          _refreshFilterActiveState();
-                        });
-                        _search(currentQuery);
-                      },
+                      onChanged: _onSearchChanged,
                     ),
-                  if (minRating != null)
-                    Chip(
-                      label: Text("Rating ≥ $minRating"),
-                      onDeleted: () {
-                        setState(() {
-                          _setMinRating(null);
-                        });
-                        _search(currentQuery);
-                      },
+                  ),
+                  SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isFilterActive
+                          ? Theme.of(context).colorScheme.secondary
+                          : Theme.of(context).primaryColor,
                     ),
-                  if (maxRating != null)
-                    Chip(
-                      label: Text("Rating ≤ $maxRating"),
-                      onDeleted: () {
-                        setState(() {
-                          _setMaxRating(null);
-                        });
-                        _search(currentQuery);
-                      },
+                    child: IconButton(
+                      icon: Icon(Icons.filter_list, color: Colors.white),
+                      onPressed: _showFilterOptions,
                     ),
+                  ),
                 ],
               ),
             ),
 
-          Expanded(
-            child: ListView(
-              children: [
-                if (isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else if (currentQuery.isNotEmpty || isFilterActive)
-                  _filteredClasses.isNotEmpty
-                      ? GridView.builder(
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          padding: const EdgeInsets.all(8),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                                childAspectRatio: 0.8,
-                              ),
-                          itemCount: _filteredClasses.length,
-                          itemBuilder: (context, index) {
-                            final item = _filteredClasses[index];
-                            return ScheduleCard_search(
-                              classId: item['classId'] ?? item['id'],
-                              className:
-                                  item['class_name'] ??
-                                  item['className'] ??
-                                  'Unnamed Class',
-                              enrolledLearner: item['enrolledLearner'] ?? 0,
-                              learnerLimit:
-                                  item['learnerLimit'] ??
-                                  item['learner_limit'] ??
-                                  100,
-                              teacherName:
-                                  item['teacher_name'] ??
-                                  item['teacherName'] ??
-                                  'Unknown Teacher',
-                              date:
-                                  DateTime.tryParse(item['date'] ?? '') ??
-                                  DateTime.now(),
-                              startTime: parseTime(
-                                item['startTime'] ?? '00:00',
-                              ),
-                              endTime: parseTime(item['endTime'] ?? '00:00'),
-                              imagePath:
-                                  item['imagePath'] ??
-                                  'assets/images/default.jpg',
-                              rating: (item['rating'] is num)
-                                  ? (item['rating'] as num).toDouble()
-                                  : 4.5,
-                            );
-                          },
-                        )
-                      : const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text("No results found"),
-                        )
-                else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
+            if (isFilterActive)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    if (_categoryFilters.isNotEmpty)
+                      Chip(
+                        label: Text(
+                          "Categories: ${selectedCategories.join(',')}",
                         ),
-                        child: Text(
-                          "Recommended Class",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                        onDeleted: () {
+                          setState(() {
+                            selectedCategories.clear();
+                            _refreshFilterActiveState();
+                          });
+                          _search(currentQuery);
+                        },
+                      ),
+                    if (minRating != null)
+                      Chip(
+                        label: Text("Rating ≥ $minRating"),
+                        onDeleted: () {
+                          setState(() {
+                            _setMinRating(null);
+                          });
+                          _search(currentQuery);
+                        },
+                      ),
+                    if (maxRating != null)
+                      Chip(
+                        label: Text("Rating ≤ $maxRating"),
+                        onDeleted: () {
+                          setState(() {
+                            _setMaxRating(null);
+                          });
+                          _search(currentQuery);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  if (isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: GridLoadingSkeleton(itemCount: 6),
+                    )
+                  else if (currentQuery.isNotEmpty || isFilterActive)
+                    _filteredClasses.isNotEmpty
+                        ? GridView.builder(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(8),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  childAspectRatio: 0.8,
+                                ),
+                            itemCount: _filteredClasses.length,
+                            itemBuilder: (context, index) {
+                              final item = _filteredClasses[index];
+                              return ScheduleCard_search(
+                                classId: item['id'] ?? item['classId'] ?? 0,
+                                className:
+                                    item['class_name'] ??
+                                    item['className'] ??
+                                    'Unnamed Class',
+                                teacherName:
+                                    item['teacher_name'] ??
+                                    item['teacherName'] ??
+                                    'Unknown Teacher',
+                                date: DateTime.now(),
+                                startTime: TimeOfDay(hour: 0, minute: 0),
+                                endTime: TimeOfDay(hour: 0, minute: 0),
+                                imageUrl:
+                                    (item['banner_picture_url'] ??
+                                            item['banner_picture'] ??
+                                            item['imagePath'])
+                                        ?.toString(),
+                                fallbackAsset: 'assets/images/guitar.jpg',
+                                showSchedule: false,
+                                rating: (item['rating'] is num)
+                                    ? (item['rating'] as num).toDouble()
+                                    : 0.0,
+                              );
+                            },
+                          )
+                        : const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text("No results found"),
+                          )
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            "Recommended Class",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                      SizedBox(
-                        height: 180,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: scheduleData.length,
-                          itemBuilder: (context, index) {
-                            final item = scheduleData[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: ScheduleCard_search(
-                                classId: item['classId'],
-                                className: item['className'],
-                                enrolledLearner: item['enrolledLearner'],
-                                learnerLimit: item['learnerLimit'] ?? 100,
-                                teacherName: item['teacherName'],
-                                date: parseDate(item['date']),
-                                startTime: parseTime(item['startTime']),
-                                endTime: parseTime(item['endTime']),
-                                imagePath: item['imagePath'],
-                                rating: item['rating'],
-                              ),
-                            );
-                          },
+                        SizedBox(
+                          height: 180,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: _isLoadingRecommended
+                                ? const HorizontalLoadingSkeleton(itemCount: 5)
+                                : _recommendedClasses.isEmpty
+                                    ? const Center(
+                                        key: ValueKey('no_recommended'),
+                                        child: Text('No recommended sessions found'),
+                                      )
+                                    : ListView.builder(
+                                        key: const ValueKey('recommended_list'),
+                                        scrollDirection: Axis.horizontal,
+                                        physics: const BouncingScrollPhysics(),
+                                        itemCount: _recommendedClasses.length,
+                                        itemBuilder: (context, index) {
+                                          final item = _recommendedClasses[index];
+                                          return Padding(
+                                            padding: const EdgeInsets.only(right: 12),
+                                            child: ScheduleCard_search(
+                                              classId: item.classId,
+                                              className: item.className,
+                                              enrolledLearner: item.enrolledLearner,
+                                              learnerLimit: item.learnerLimit,
+                                              teacherName: item.teacherName,
+                                              date: item.date,
+                                              startTime: item.startTime,
+                                              endTime: item.endTime,
+                                              imageUrl: item.imageUrl,
+                                              fallbackAsset:
+                                                  'assets/images/default.jpg',
+                                              rating: item.rating,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                          ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              "Popular Classes",
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (_popularClasses.length > 10)
-                              TextButton(
-                                onPressed: () async {
-                                  if (showAllPopular) {
-                                    setState(() => showAllPopular = false);
-                                    _loadPopularClasses(); // reload only top 10
-                                  } else {
-                                    final data = await api
-                                        .getPopularClasses(); // all classes
-                                    setState(() {
-                                      _popularClasses = data;
-                                      showAllPopular = true;
-                                    });
-                                  }
-                                },
-                                child: Text(
-                                  showAllPopular ? "See less" : "See more",
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Popular Classes",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                          ],
+                              if ((_popularTopCache?.length ??
+                                          _popularClasses.length) >
+                                      10 ||
+                                  _popularAllCache != null)
+                                TextButton(
+                                  onPressed: _isLoadingPopularToggle
+                                      ? null
+                                      : _togglePopularView,
+                                  child: _isLoadingPopularToggle
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Text(
+                                          showAllPopular
+                                              ? "See less"
+                                              : "See more",
+                                        ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
 
-                      SizedBox(
-                        height: 180,
-                        child: _popularClasses.isEmpty
-                            ? const Center(
-                                child: Text("No popular classes found"),
-                              )
-                            : ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: _popularClasses.length,
-                                itemBuilder: (context, index) {
-                                  final item = _popularClasses[index];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 12),
-                                    child: ScheduleCard_search(
-                                      classId: item['classId'] ?? item['id'],
-                                      className:
-                                          item['class_name'] ?? 'Unnamed Class',
-                                      enrolledLearner:
-                                          item['enrolledLearner'] ?? 0,
-                                      learnerLimit:
-                                          item['learnerLimit'] ??
-                                          item['learner_limit'] ??
-                                          100,
-                                      teacherName:
-                                          item['teacher_name'] ??
-                                          'Unknown Teacher',
-                                      date:
-                                          DateTime.tryParse(
-                                            item['date'] ?? '',
-                                          ) ??
-                                          DateTime.now(),
-                                      startTime: parseTime(
-                                        item['startTime'] ?? '00:00',
-                                      ),
-                                      endTime: parseTime(
-                                        item['endTime'] ?? '00:00',
-                                      ),
-                                      imagePath:
-                                          item['imagePath'] ??
-                                          'assets/images/default.jpg',
-                                      rating: (item['rating'] is num)
-                                          ? (item['rating'] as num).toDouble()
-                                          : 4.5,
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
-              ],
+                        SizedBox(
+                          height: 180,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: _popularClasses.isEmpty
+                                ? const Center(
+                                    key: ValueKey('no_popular'),
+                                    child: Text("No popular classes found"),
+                                  )
+                                : ListView.builder(
+                                    key: const ValueKey('popular_list'),
+                                    scrollDirection: Axis.horizontal,
+                                    physics: const BouncingScrollPhysics(),
+                                    itemCount: _popularClasses.length,
+                                    itemBuilder: (context, index) {
+                                      final item = _popularClasses[index];
+                                      return Padding(
+                                        padding: const EdgeInsets.only(right: 12),
+                                        child: ScheduleCard_search(
+                                          classId:
+                                              item['id'] ?? item['classId'] ?? 0,
+                                          className:
+                                              item['class_name'] ??
+                                              'Unnamed Class',
+                                          teacherName:
+                                              item['teacher_name'] ??
+                                              'Unknown Teacher',
+                                          date: DateTime.now(),
+                                          startTime: TimeOfDay(
+                                            hour: 0,
+                                            minute: 0,
+                                          ),
+                                          endTime: TimeOfDay(hour: 0, minute: 0),
+                                          imageUrl:
+                                              (item['banner_picture_url'] ??
+                                                      item['banner_picture'] ??
+                                                      item['imagePath'])
+                                                  ?.toString(),
+                                          fallbackAsset:
+                                              'assets/images/guitar.jpg',
+                                          showSchedule: false,
+                                          rating: (item['rating'] is num)
+                                              ? (item['rating'] as num).toDouble()
+                                              : 0.0,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
+
+class SearchDataStore extends ChangeNotifier {
+  SearchDataStore._internal();
+
+  static final SearchDataStore instance = SearchDataStore._internal();
+
+  List<dynamic>? _allClasses;
+  List<dynamic>? _popularTop;
+  List<dynamic>? _popularAll;
+
+  List<dynamic>? get allClasses =>
+      _allClasses != null ? List<dynamic>.from(_allClasses!) : null;
+  List<dynamic>? get popularTop =>
+      _popularTop != null ? List<dynamic>.from(_popularTop!) : null;
+  List<dynamic>? get popularAll =>
+      _popularAll != null ? List<dynamic>.from(_popularAll!) : null;
+
+  void updateAllClasses(List<dynamic> classes) {
+    if (_shouldSkipUpdate(_allClasses, classes)) return;
+    _allClasses = List<dynamic>.from(classes);
+    notifyListeners();
+  }
+
+  void updatePopularTop(List<dynamic> classes) {
+    if (_shouldSkipUpdate(_popularTop, classes)) return;
+    _popularTop = List<dynamic>.from(classes);
+    notifyListeners();
+  }
+
+  void updatePopularAll(List<dynamic> classes) {
+    if (_shouldSkipUpdate(_popularAll, classes)) return;
+    _popularAll = List<dynamic>.from(classes);
+    notifyListeners();
+  }
+
+  bool _shouldSkipUpdate(List<dynamic>? existing, List<dynamic> incoming) {
+    if (existing == null) return false;
+    return listEquals(existing, incoming);
+  }
+}
+
+class SearchDataProvider extends InheritedNotifier<SearchDataStore> {
+  const SearchDataProvider({
+    super.key,
+    required SearchDataStore notifier,
+    required Widget child,
+  }) : super(notifier: notifier, child: child);
+
+  static SearchDataStore of(BuildContext context) {
+    final provider = context
+        .dependOnInheritedWidgetOfExactType<SearchDataProvider>();
+    if (provider == null || provider.notifier == null) {
+      throw FlutterError('SearchDataProvider not found in context');
+    }
+    return provider.notifier!;
+  }
+}
+
+class _RecommendedClass {
+  final int classId;
+  final int sessionId;
+  final String className;
+  final String teacherName;
+  final DateTime date;
+  final TimeOfDay startTime;
+  final TimeOfDay endTime;
+  final String? imageUrl;
+  final double rating;
+  final int? enrolledLearner;
+  final int? learnerLimit;
+
+  const _RecommendedClass({
+    required this.classId,
+    required this.sessionId,
+    required this.className,
+    required this.teacherName,
+    required this.date,
+    required this.startTime,
+    required this.endTime,
+    this.imageUrl,
+    required this.rating,
+    this.enrolledLearner,
+    this.learnerLimit,
+  });
 }
 
 class RatingValidation {

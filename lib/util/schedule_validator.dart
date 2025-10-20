@@ -1,6 +1,7 @@
-import 'package:tutorium_frontend/service/ClassSessions.dart';
-import 'package:tutorium_frontend/service/Enrollments.dart';
-import 'package:tutorium_frontend/util/cache_user.dart';
+import 'package:tutorium_frontend/models/class_models.dart' as models;
+import 'package:tutorium_frontend/service/class_sessions.dart'
+    as class_sessions;
+import 'package:tutorium_frontend/service/enrollments.dart' as enrollment_api;
 
 /// ตรวจสอบและป้องกันการลงเวลาทับกันของ Class Sessions
 /// สำหรับทั้ง Teacher และ Learner
@@ -35,6 +36,25 @@ class ScheduleValidator {
         end1.isAfter(start2.subtract(const Duration(seconds: 1)));
   }
 
+  /// Find the first conflicting session from an in-memory list.
+  static models.ClassSession? findConflict(
+    DateTime newStart,
+    DateTime newEnd,
+    List<models.ClassSession> sessions,
+  ) {
+    for (final session in sessions) {
+      if (isTimeOverlappingStrict(
+        newStart,
+        newEnd,
+        session.classStart,
+        session.classFinish,
+      )) {
+        return session;
+      }
+    }
+    return null;
+  }
+
   /// ตรวจสอบว่า Teacher มี Class Session ทับกันหรือไม่
   /// Returns: { 'valid': bool, 'message': String?, 'conflictSessions': List<ClassSession>? }
   static Future<Map<String, dynamic>> validateTeacherSchedule({
@@ -46,7 +66,7 @@ class ScheduleValidator {
     try {
       // ดึง Class Sessions ทั้งหมดของ Teacher
       // ต้องดึงผ่าน Classes ที่ teacher เป็นเจ้าของ
-      final allSessions = await ClassSession.fetchAll(
+      final allSessions = await class_sessions.ClassSession.fetchAll(
         query: {
           'teacher_id': teacherId,
           'status': 'scheduled', // เฉพาะที่ยังไม่จบ
@@ -59,7 +79,7 @@ class ScheduleValidator {
           : allSessions;
 
       // ตรวจสอบทีละ session
-      final conflictSessions = <ClassSession>[];
+      final conflictSessions = <class_sessions.ClassSession>[];
       for (final session in sessionsToCheck) {
         final sessionStart = DateTime.parse(session.classStart);
         final sessionEnd = DateTime.parse(session.classFinish);
@@ -104,7 +124,7 @@ class ScheduleValidator {
   }) async {
     try {
       // ดึง Enrollments ทั้งหมดของ Learner
-      final enrollments = await Enrollment.fetchAll(
+      final enrollments = await enrollment_api.Enrollment.fetchAll(
         query: {
           'learner_id': learnerId,
           'enrollment_status': 'active', // เฉพาะที่ active
@@ -112,7 +132,7 @@ class ScheduleValidator {
       );
 
       // ดึง Class Sessions ที่เกี่ยวข้อง
-      final conflictSessions = <ClassSession>[];
+      final conflictSessions = <class_sessions.ClassSession>[];
       for (final enrollment in enrollments) {
         // ข้ามถ้าเป็น session ที่ต้องการไม่เช็ค
         if (excludeSessionId != null &&
@@ -121,7 +141,7 @@ class ScheduleValidator {
         }
 
         try {
-          final session = await ClassSession.fetchById(
+          final session = await class_sessions.ClassSession.fetchById(
             enrollment.classSessionId,
           );
           final sessionStart = DateTime.parse(session.classStart);
@@ -191,7 +211,7 @@ class ScheduleValidator {
   }) async {
     try {
       // ดึงข้อมูล session ที่จะ enroll
-      final session = await ClassSession.fetchById(sessionId);
+      final session = await class_sessions.ClassSession.fetchById(sessionId);
       final sessionStart = DateTime.parse(session.classStart);
       final sessionEnd = DateTime.parse(session.classFinish);
 
@@ -236,7 +256,9 @@ class ScheduleValidator {
   }
 
   /// สร้างข้อความแสดง conflict sessions
-  static String formatConflictMessage(List<ClassSession> conflicts) {
+  static String formatConflictMessage(
+    List<class_sessions.ClassSession> conflicts,
+  ) {
     if (conflicts.isEmpty) return '';
 
     final buffer = StringBuffer();

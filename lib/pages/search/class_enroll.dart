@@ -6,10 +6,11 @@ import 'package:http/http.dart' as http;
 import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dart';
 import 'package:tutorium_frontend/pages/profile/teacher_profile.dart';
 import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
-import 'package:tutorium_frontend/service/Enrollments.dart' as enrollment_api;
-import 'package:tutorium_frontend/service/Notifications.dart'
+import 'package:tutorium_frontend/models/class_models.dart' as class_models;
+import 'package:tutorium_frontend/service/enrollments.dart' as enrollment_api;
+import 'package:tutorium_frontend/service/notifications.dart'
     as notification_api;
-import 'package:tutorium_frontend/service/Users.dart' as user_api;
+import 'package:tutorium_frontend/service/users.dart' as user_api;
 import 'package:tutorium_frontend/util/cache_user.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
 
@@ -48,8 +49,14 @@ class User {
   final int id;
   final String firstName;
   final String lastName;
+  final String? profilePicture;
 
-  User({required this.id, required this.firstName, required this.lastName});
+  User({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    this.profilePicture,
+  });
 
   factory User.fromJson(Map<String, dynamic> json) {
     final idValue = json['ID'] ?? json['id'] ?? 0;
@@ -57,6 +64,7 @@ class User {
       id: (idValue is String) ? int.tryParse(idValue) ?? 0 : idValue,
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'] ?? '',
+      profilePicture: json['profile_picture']?.toString(),
     );
   }
 
@@ -80,45 +88,65 @@ class ClassEnrollPage extends StatefulWidget {
 }
 
 class _ClassEnrollPageState extends State<ClassEnrollPage> {
-  ClassSession? selectedSession;
+  class_models.ClassSession? selectedSession;
   ClassInfo? classInfo;
   UserInfo? userInfo;
-  List<ClassSession> sessions = [];
+  List<class_models.ClassSession> sessions = [];
   List<Review> reviews = [];
   List<User> users = [];
   Map<int, User> usersMap = {};
+  final Map<int, User> _userCache = {};
+  final Map<int, Future<User?>> _userRequests = {};
+  final Map<int, String> _teacherNameCache = {};
+  final Map<int, Future<String?>> _teacherNameRequests = {};
   bool isLoadingReviews = true;
   bool isLoading = true;
   bool showAllReviews = false;
   bool hasError = false;
   String errorMessage = '';
   bool isProcessingEnrollment = false;
+  String teacherName = '';
 
   @override
   void initState() {
     super.initState();
+    teacherName = widget.teacherName;
     loadAllData();
   }
 
   Future<void> loadAllData() async {
+    setState(() {
+      isLoading = true;
+      isLoadingReviews = true;
+      hasError = false;
+    });
+
     try {
-      setState(() {
-        isLoading = true;
-        isLoadingReviews = true;
-        hasError = false;
-      });
+      final classDataFuture = fetchClassData();
+      final reviewsFuture = fetchReviews();
 
-      await Future.wait([fetchClassData(), fetchReviews()]);
-      await fetchUsers();
+      await classDataFuture;
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
 
+      final fetchedReviews = await reviewsFuture;
+      final fetchedUsers = await _fetchUsersForReviews(fetchedReviews);
+
+      if (!mounted) return;
       setState(() {
-        isLoading = false;
+        usersMap = fetchedUsers;
         isLoadingReviews = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         hasError = true;
         errorMessage = "Failed to load data: $e";
+        isLoading = false;
+        isLoadingReviews = false;
       });
       debugPrint("Error loading data: $e");
     }
@@ -128,58 +156,57 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     final previousSelectedId = selectedSession?.id;
     final service = ClassSessionService();
 
-    final fetchedSessions = await service.fetchClassSessions(widget.classId);
-    final fetchedClassInfo = await service.fetchClassInfo(widget.classId);
-
-    UserInfo? fetchedUserInfo;
     try {
-      fetchedUserInfo = await service.fetchUser();
-    } catch (e) {
-      debugPrint('⚠️ Failed to fetch user info: $e');
-    }
+      final results = await Future.wait([
+        service.fetchClassSessions(widget.classId),
+        service.fetchClassInfo(widget.classId),
+      ]);
 
-    if (fetchedUserInfo != null) {
-      if (fetchedUserInfo.learnerId != null) {
-        await LocalStorage.saveLearnerId(fetchedUserInfo.learnerId!);
-      }
+      final fetchedSessions = results[0] as List<class_models.ClassSession>;
+      final fetchedClassInfo = results[1] as ClassInfo;
 
-      final cachedBalance = await LocalStorage.getUserBalance();
-      final latestBalance = _roundToCents(fetchedUserInfo.balance);
+      final teacherFuture = _fetchTeacherDisplayName(
+        fetchedClassInfo.teacher_id,
+      );
+      final userFuture = service
+          .fetchUser()
+          .then<UserInfo?>((user) => user)
+          .catchError((error, stackTrace) {
+            debugPrint('⚠️ Failed to fetch user info: $error');
+            return null;
+          });
 
-      if (cachedBalance == null ||
-          (cachedBalance - latestBalance).abs() > 0.009) {
-        await LocalStorage.saveUserBalance(latestBalance);
-      }
-
-      final balanceToUse = await LocalStorage.getUserBalance() ?? latestBalance;
-      fetchedUserInfo = fetchedUserInfo.copyWith(balance: balanceToUse);
-    } else {
-      final cachedBalance = await LocalStorage.getUserBalance();
-      if (cachedBalance != null && userInfo != null) {
-        fetchedUserInfo = userInfo!.copyWith(balance: cachedBalance);
-      }
-    }
-
-    ClassSession? restoredSelection;
-    if (previousSelectedId != null) {
-      for (final session in fetchedSessions) {
-        if (session.id == previousSelectedId) {
-          restoredSelection = session;
-          break;
+      class_models.ClassSession? restoredSelection;
+      if (previousSelectedId != null) {
+        for (final session in fetchedSessions) {
+          if (session.id == previousSelectedId) {
+            restoredSelection = session;
+            break;
+          }
         }
       }
-    }
 
-    if (!mounted) return;
-    setState(() {
-      sessions = fetchedSessions;
-      classInfo = fetchedClassInfo;
-      userInfo = fetchedUserInfo;
-      selectedSession = restoredSelection;
-    });
+      final teacherResult = await teacherFuture;
+      final fetchedUserInfo = await userFuture;
+      final hydratedUserInfo = await _hydrateUserInfo(fetchedUserInfo);
+
+      if (!mounted) return;
+      setState(() {
+        sessions = fetchedSessions;
+        classInfo = fetchedClassInfo;
+        userInfo = hydratedUserInfo;
+        selectedSession = restoredSelection;
+        if (teacherResult != null && teacherResult.isNotEmpty) {
+          teacherName = teacherResult;
+        }
+      });
+    } catch (e) {
+      debugPrint('Error fetching class data: $e');
+      rethrow;
+    }
   }
 
-  Future<void> fetchReviews() async {
+  Future<List<Review>> fetchReviews() async {
     try {
       final apiKey = dotenv.env["API_URL"];
       final port = dotenv.env["PORT"];
@@ -193,66 +220,208 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
             .where((r) => (r.classId ?? -1) == widget.classId)
             .toList();
 
-        setState(() {
+        if (mounted) {
+          setState(() {
+            reviews = filteredReviews;
+          });
+        } else {
           reviews = filteredReviews;
-        });
+        }
 
         debugPrint(
           "🎯 Filtered ${filteredReviews.length}/${allReviews.length} reviews for class ${widget.classId}",
         );
+
+        return filteredReviews;
       } else {
         throw Exception("Failed to load reviews: ${response.statusCode}");
       }
     } catch (e) {
       debugPrint("Error fetching reviews: $e");
-      setState(() {
+      if (mounted) {
+        setState(() {
+          reviews = [];
+        });
+      } else {
         reviews = [];
-      });
+      }
+      return [];
     }
   }
 
-  Future<void> fetchUsers() async {
-    try {
-      final apiKey = dotenv.env["API_URL"];
-      final port = dotenv.env["PORT"];
-      final userIds = reviews
-          .map((r) => r.userId)
-          .where((id) => id != null && id != 0)
-          .toSet()
-          .toList();
+  Future<Map<int, User>> _fetchUsersForReviews(List<Review> reviewList) async {
+    final ids = reviewList
+        .map((r) => r.userId)
+        .whereType<int>()
+        .where((id) => id != 0)
+        .toSet();
 
-      if (userIds.isEmpty) {
-        debugPrint("⚠️ No user IDs found in reviews");
-        return;
-      }
-
-      final Map<int, User> fetchedUsers = {};
-      for (final id in userIds) {
-        final apiUrl = "$apiKey:$port/users/$id";
-        final response = await http.get(Uri.parse(apiUrl));
-
-        if (response.statusCode == 200) {
-          final jsonData = jsonDecode(response.body);
-          final user = User.fromJson(jsonData);
-          fetchedUsers[user.id] = user;
-        } else {
-          debugPrint("⚠️ Failed to fetch user $id: ${response.statusCode}");
-        }
-      }
-
-      setState(() {
-        usersMap = fetchedUsers;
-      });
-
-      debugPrint("👥 Loaded ${usersMap.length} users for reviews");
-    } catch (e) {
-      debugPrint("❌ Error fetching users: $e");
+    if (ids.isEmpty) {
+      debugPrint("⚠️ No user IDs found in reviews");
+      return {};
     }
+
+    final baseUrl = '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}';
+
+    final Map<int, User> aggregatedUsers = {
+      for (final id in ids)
+        if (_userCache.containsKey(id)) id: _userCache[id]!,
+    };
+
+    final fetchFutures = ids
+        .where((id) => !_userCache.containsKey(id))
+        .map((id) async {
+          final user = await _getUserWithCache(baseUrl, id);
+          if (user != null) {
+            aggregatedUsers[id] = user;
+          }
+        })
+        .toList(growable: false);
+
+    if (fetchFutures.isNotEmpty) {
+      await Future.wait(fetchFutures, eagerError: false);
+    }
+
+    debugPrint("👥 Loaded ${aggregatedUsers.length} users for reviews");
+    return aggregatedUsers;
+  }
+
+  Future<User?> _getUserWithCache(String baseUrl, int id) {
+    if (_userCache.containsKey(id)) {
+      return Future.value(_userCache[id]);
+    }
+
+    final inFlight = _userRequests[id];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final networkFuture = () async {
+      final response = await http.get(Uri.parse('$baseUrl/users/$id'));
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
+        return User.fromJson(jsonData);
+      }
+
+      debugPrint("⚠️ Failed to fetch user $id: ${response.statusCode}");
+      return null;
+    }();
+
+    final trackedFuture = () async {
+      try {
+        final user = await networkFuture;
+        if (user != null) {
+          _userCache[id] = user;
+        }
+        return user;
+      } catch (error) {
+        debugPrint("❌ Error fetching user $id: $error");
+        return null;
+      } finally {
+        _userRequests.remove(id);
+      }
+    }();
+
+    _userRequests[id] = trackedFuture;
+    return trackedFuture;
+  }
+
+  Future<String?> _fetchTeacherDisplayName(int? teacherId) {
+    final id = teacherId ?? 0;
+    if (id <= 0) return Future.value(null);
+
+    if (_teacherNameCache.containsKey(id)) {
+      return Future.value(_teacherNameCache[id]);
+    }
+
+    final inFlight = _teacherNameRequests[id];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = () async {
+      final baseUrl = '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}';
+      try {
+        final teacherResponse = await http.get(
+          Uri.parse('$baseUrl/teachers/$id'),
+        );
+        if (teacherResponse.statusCode != 200) {
+          debugPrint(
+            '⚠️ Failed to fetch teacher $id: ${teacherResponse.statusCode}',
+          );
+          return null;
+        }
+
+        final teacherData =
+            jsonDecode(teacherResponse.body) as Map<String, dynamic>;
+        final userId = teacherData['user_id'];
+        if (userId == null) {
+          return null;
+        }
+
+        final userResponse = await http.get(
+          Uri.parse('$baseUrl/users/$userId'),
+        );
+        if (userResponse.statusCode != 200) {
+          debugPrint(
+            '⚠️ Failed to fetch teacher user $userId: ${userResponse.statusCode}',
+          );
+          return null;
+        }
+
+        final userData = jsonDecode(userResponse.body) as Map<String, dynamic>;
+        final fetchedName =
+            '${userData['first_name'] ?? ''} ${userData['last_name'] ?? ''}'
+                .trim();
+        if (fetchedName.isEmpty) {
+          return null;
+        }
+
+        _teacherNameCache[id] = fetchedName;
+        return fetchedName;
+      } catch (error) {
+        debugPrint('⚠️ Failed to fetch teacher name for $id: $error');
+        return null;
+      } finally {
+        _teacherNameRequests.remove(id);
+      }
+    }();
+
+    _teacherNameRequests[id] = future;
+    return future;
+  }
+
+  Future<UserInfo?> _hydrateUserInfo(UserInfo? fetchedUserInfo) async {
+    var resolvedInfo = fetchedUserInfo;
+
+    if (resolvedInfo != null) {
+      if (resolvedInfo.learnerId != null) {
+        await LocalStorage.saveLearnerId(resolvedInfo.learnerId!);
+      }
+
+      final cachedBalance = await LocalStorage.getUserBalance();
+      final latestBalance = _roundToCents(resolvedInfo.balance);
+
+      if (cachedBalance == null ||
+          (cachedBalance - latestBalance).abs() > 0.009) {
+        await LocalStorage.saveUserBalance(latestBalance);
+      }
+
+      final balanceToUse = await LocalStorage.getUserBalance() ?? latestBalance;
+      resolvedInfo = resolvedInfo.copyWith(balance: balanceToUse);
+    } else {
+      final cachedBalance = await LocalStorage.getUserBalance();
+      if (cachedBalance != null && userInfo != null) {
+        resolvedInfo = userInfo!.copyWith(balance: cachedBalance);
+      }
+    }
+
+    return resolvedInfo;
   }
 
   String getUserName(Review review) {
     if (review.userId == null) return "Unknown User";
-    final user = usersMap[review.userId!];
+    final user = usersMap[review.userId!] ?? _userCache[review.userId!];
     return user?.fullName ?? "Unknown User";
   }
 
@@ -286,7 +455,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
   Widget _buildSessionDropdown() {
     if (sessions.isEmpty) return const Text("No sessions available");
 
-    return DropdownButton<ClassSession>(
+    return DropdownButton<class_models.ClassSession>(
       isExpanded: true,
       hint: const Text("Choose a session"),
       value: selectedSession,
@@ -313,73 +482,183 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
   }
 
   Widget _buildReviewsSection() {
-    if (isLoadingReviews || usersMap.isEmpty) {
+    if (isLoadingReviews) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (reviews.isEmpty) {
-      return const Text("No reviews yet");
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.grey.shade50, Colors.grey.shade100],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.rate_review_outlined,
+                size: 48,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "No reviews yet",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Be the first to review this class!",
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return Column(
       children: [
-        ...reviews.take(showAllReviews ? reviews.length : 2).map((review) {
+        ...reviews.take(showAllReviews ? reviews.length : 3).map((review) {
           final reviewerName = getUserName(review);
+          final userId = review.userId ?? 0;
+          final user = usersMap[userId] ?? _userCache[userId];
+          final rating = review.rating ?? 0;
 
-          return ListTile(
-            leading: const CircleAvatar(
-              backgroundColor: Colors.greenAccent,
-              radius: 20,
-              child: Icon(Icons.person, color: Colors.white),
-            ),
-            title: Text(
-              reviewerName,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            subtitle: Column(
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 4),
-                Text(
-                  review.comment?.isNotEmpty == true
-                      ? review.comment!
-                      : "(No comment)",
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    ...List.generate(
-                      5,
-                      (i) => Icon(
-                        i < (review.rating ?? 0)
-                            ? Icons.star
-                            : Icons.star_border,
-                        size: 16,
-                        color: Colors.amber,
+                // Profile Picture
+                _buildProfileAvatar(user, reviewerName),
+                const SizedBox(width: 12),
+                // Review Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Name
+                      Text(
+                        reviewerName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      "${(review.rating ?? 0).toDouble().toStringAsFixed(1)}/5.0",
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      // Star Rating
+                      Row(
+                        children: List.generate(
+                          5,
+                          (i) => Icon(
+                            i < rating
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 16,
+                            color: i < rating
+                                ? Colors.amber
+                                : Colors.grey.shade400,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Comment
+                      Text(
+                        review.comment?.isNotEmpty == true
+                            ? review.comment!
+                            : "(No comment provided)",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                          height: 1.4,
+                          fontStyle: review.comment?.isNotEmpty == true
+                              ? FontStyle.normal
+                              : FontStyle.italic,
+                        ),
+                        maxLines: showAllReviews ? null : 3,
+                        overflow: showAllReviews ? null : TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           );
         }),
-        if (reviews.length > 2)
-          TextButton(
-            onPressed: () {
-              setState(() {
-                showAllReviews = !showAllReviews;
-              });
-            },
-            child: Text(showAllReviews ? "See Less" : "See More"),
+        if (reviews.length > 3)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  showAllReviews = !showAllReviews;
+                });
+              },
+              child: Text(
+                showAllReviews ? "Show less" : "See all reviews",
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                foregroundColor: Colors.blue.shade700,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
       ],
     );
+  }
+
+  Widget _buildProfileAvatar(User? user, String name) {
+    final profilePicture = user?.profilePicture;
+
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: Colors.grey.shade300,
+      backgroundImage: profilePicture != null && profilePicture.isNotEmpty
+          ? NetworkImage(profilePicture)
+          : NetworkImage('https://picsum.photos/seed/${name.hashCode}/200'),
+      onBackgroundImageError: (_, __) {
+        // Fallback handled by placeholder
+      },
+    );
+  }
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) {
+      return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
+    }
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  List<Color> _getGradientForRating(int rating) {
+    if (rating >= 5) {
+      return [Colors.purple.shade400, Colors.deepPurple.shade600];
+    } else if (rating >= 4) {
+      return [Colors.blue.shade400, Colors.indigo.shade600];
+    } else if (rating >= 3) {
+      return [Colors.teal.shade400, Colors.cyan.shade600];
+    } else if (rating >= 2) {
+      return [Colors.orange.shade400, Colors.deepOrange.shade600];
+    } else {
+      return [Colors.grey.shade400, Colors.blueGrey.shade600];
+    }
   }
 
   Future<int?> _ensureLearnerId() async {
@@ -613,7 +892,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
 
   Future<void> _createEnrollmentNotification({
     required int userId,
-    required ClassSession session,
+    required class_models.ClassSession session,
     required int learnerId,
   }) async {
     final className = classInfo?.name ?? session.description;
@@ -725,6 +1004,45 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     );
   }
 
+  Widget _buildBannerImage() {
+    const fallback = 'assets/images/guitar.jpg';
+    final imagePath = classInfo?.bannerPicture;
+
+    if (imagePath == null || imagePath.isEmpty) {
+      return Image.asset(fallback, fit: BoxFit.cover);
+    }
+
+    if (imagePath.toLowerCase().startsWith('data:image')) {
+      try {
+        final payload = imagePath.substring(imagePath.indexOf(',') + 1);
+        final bytes = base64Decode(payload);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              Image.asset(fallback, fit: BoxFit.cover),
+        );
+      } catch (e) {
+        debugPrint('⚠️ Failed to decode base64 banner: $e');
+        return Image.asset(fallback, fit: BoxFit.cover);
+      }
+    }
+
+    if (imagePath.toLowerCase().startsWith('http')) {
+      return Image.network(
+        imagePath,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Image.asset(fallback, fit: BoxFit.cover),
+      );
+    }
+
+    return Image.asset(
+      imagePath.isNotEmpty ? imagePath : fallback,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Image.asset(fallback, fit: BoxFit.cover),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -736,10 +1054,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                 expandedHeight: 250,
                 pinned: true,
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Image.asset(
-                    "assets/images/guitar.jpg",
-                    fit: BoxFit.cover,
-                  ),
+                  background: _buildBannerImage(),
                 ),
               ),
               SliverToBoxAdapter(
@@ -798,7 +1113,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  "👨‍🏫 Teacher: ${widget.teacherName}",
+                                  "👨‍🏫 Teacher: $teacherName",
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -823,7 +1138,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                                       ).showSnackBar(
                                         SnackBar(
                                           content: Text(
-                                            "Teacher ID not found for ${widget.teacherName}",
+                                            "Teacher ID not found for $teacherName",
                                           ),
                                         ),
                                       );
@@ -868,7 +1183,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
             left: 0,
             right: 0,
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               color: Colors.white,
               child: ElevatedButton(
                 onPressed: (selectedSession == null || isProcessingEnrollment)
