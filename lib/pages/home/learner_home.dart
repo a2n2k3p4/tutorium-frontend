@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:tutorium_frontend/service/ClassSessions.dart'
-    as class_session_api;
-import 'package:tutorium_frontend/service/Classes.dart' as class_api;
-import 'package:tutorium_frontend/service/Enrollments.dart' as enrollment_api;
-import 'package:tutorium_frontend/service/Learners.dart' as learner_api;
-import 'package:tutorium_frontend/service/Meetings.dart' as meeting_api;
-import 'package:tutorium_frontend/service/Teachers.dart' as teacher_api;
-import 'package:tutorium_frontend/service/Users.dart' as user_api;
+import 'package:tutorium_frontend/service/enrollments.dart' as enrollment_api;
+import 'package:tutorium_frontend/service/learners.dart' as learner_api;
+import 'package:tutorium_frontend/pages/home/teacher/register/teacher_register.dart';
+import 'package:tutorium_frontend/service/teacher_registration_service.dart';
 import 'package:tutorium_frontend/util/cache_user.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
+import 'package:tutorium_frontend/util/schedule_cache_manager.dart';
+import 'package:tutorium_frontend/util/image_cache_manager.dart';
+import 'package:tutorium_frontend/services/notification_scheduler_service.dart';
 
 import '../learn/learn.dart';
 import '../widgets/schedule_card_learner.dart';
+import '../widgets/skeleton_loading.dart';
 
 class LearnerHomePage extends StatefulWidget {
   final VoidCallback onSwitch;
@@ -26,6 +26,11 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
   final List<_LearnerScheduleItem> _schedule = [];
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isCheckingTeacherStatus = false;
+
+  // Cache managers
+  final _scheduleCache = ScheduleCacheManager();
+  final _imageCache = ImageCacheManager();
 
   void _log(String message) {
     debugPrint('📘 [LearnerHome] $message');
@@ -34,7 +39,124 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
   @override
   void initState() {
     super.initState();
+    _scheduleCache.initialize();
     _loadSchedule();
+    _startBackgroundRefresh();
+  }
+
+  @override
+  void dispose() {
+    _scheduleCache.stopBackgroundRefresh();
+    super.dispose();
+  }
+
+  void _startBackgroundRefresh() {
+    _scheduleCache.startBackgroundRefresh(() => _fetchScheduleData(), (items) {
+      if (mounted) {
+        setState(() {
+          _schedule
+            ..clear()
+            ..addAll(items.map(_toScheduleItem));
+        });
+        _log('🔄 Background refresh updated ${items.length} items');
+      }
+    });
+  }
+
+  Future<void> _handleSwitchToTeacher() async {
+    if (_isCheckingTeacherStatus) return;
+
+    setState(() {
+      _isCheckingTeacherStatus = true;
+    });
+
+    try {
+      final userId = await LocalStorage.getUserId();
+      if (userId == null) {
+        throw Exception('ไม่พบข้อมูลผู้ใช้ในระบบ');
+      }
+
+      final eligibility =
+          await TeacherRegistrationService.checkTeacherEligibility(userId);
+
+      if (!mounted) return;
+
+      if (eligibility.isAlreadyTeacher) {
+        widget.onSwitch();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('สลับไปโหมดครูแล้ว พร้อมสร้างคลาสได้ทันที'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        return;
+      }
+
+      final message = eligibility.hasEnoughBalance
+          ? 'คุณยังไม่ได้สมัครเป็นครู ต้องชำระค่าลงทะเบียน 200 บาทก่อนเริ่มสอน'
+          : 'ยอดเงินปัจจุบัน ${eligibility.currentBalance.toStringAsFixed(2)} บาท ไม่เพียงพอสำหรับค่าลงทะเบียนครู 200 บาท';
+
+      final shouldRegister = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('สมัครเป็นครู'),
+          content: Text('$message\n\nต้องการดำเนินการต่อหรือไม่?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('ยกเลิก'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
+              child: const Text('สมัครเป็นครู'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldRegister == true && mounted) {
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(builder: (context) => const TeacherRegisterPage()),
+        );
+
+        if (!mounted) return;
+
+        if (result == true) {
+          widget.onSwitch();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('สมัครสำเร็จ! สลับไปโหมดครูให้แล้ว'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ยังไม่ได้สมัครเป็นครู โปรดลองอีกครั้งเมื่อพร้อม'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาด: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingTeacherStatus = false;
+        });
+      } else {
+        _isCheckingTeacherStatus = false;
+      }
+    }
   }
 
   Future<void> _loadSchedule({bool isRefresh = false}) async {
@@ -53,128 +175,62 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
         throw Exception('ไม่พบข้อมูล Learner ของผู้ใช้คนนี้');
       }
 
-      final token = await LocalStorage.getToken();
-      _log('Resolved learnerId=$learnerId | token present=${token != null}.');
+      // Try to load from cache first
+      if (!isRefresh) {
+        final cachedItems = await _scheduleCache.getSchedule(learnerId);
+        if (cachedItems != null && cachedItems.isNotEmpty) {
+          _log('🟢 Loaded ${cachedItems.length} items from cache');
+          final scheduleItems = cachedItems.map(_toScheduleItem).toList();
 
-      final allEnrollments = await enrollment_api.Enrollment.fetchAll();
-      _log('Fetched ${allEnrollments.length} enrollments from API.');
+          // Prefetch images in background
+          final imageUrls = cachedItems
+              .map((e) => e.imagePath)
+              .where((url) => url.isNotEmpty && url.startsWith('http'))
+              .toList();
+          _imageCache.prefetchImages(imageUrls);
 
-      final activeEnrollments = allEnrollments
-          .where(
-            (e) =>
-                (e.enrollmentStatus.toLowerCase() == 'active') &&
-                e.learnerId == learnerId,
-          )
-          .toList();
-      _log('Active enrollments for learner: ${activeEnrollments.length}.');
-
-      if (activeEnrollments.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _schedule.clear();
-            _isLoading = false;
-            _errorMessage = null;
-          });
-        }
-        return;
-      }
-
-      final sessionCountMap = <int, int>{};
-      for (final enrollment in allEnrollments.where(
-        (e) => e.enrollmentStatus.toLowerCase() == 'active',
-      )) {
-        sessionCountMap.update(
-          enrollment.classSessionId,
-          (value) => value + 1,
-          ifAbsent: () => 1,
-        );
-      }
-      _log('Computed learner counts for ${sessionCountMap.length} sessions.');
-
-      final now = DateTime.now();
-      final sessionCache = <int, class_session_api.ClassSession>{};
-      final classCache = <int, class_api.ClassInfo>{};
-      final teacherNameCache = <int, String>{};
-
-      final List<_LearnerScheduleItem> items = [];
-
-      for (final enrollment in activeEnrollments) {
-        _log('Processing enrollment for session ${enrollment.classSessionId}');
-        try {
-          final session = await _fetchClassSession(
-            enrollment.classSessionId,
-            sessionCache,
-          );
-
-          final start = DateTime.parse(session.classStart).toLocal();
-          final end = DateTime.parse(session.classFinish).toLocal();
-          _log('Session ${session.id} runs $start -> $end');
-
-          // Show all enrolled sessions (past, present, future)
-          // This allows learners to see their enrollment history
-          final hoursSinceEnd = now.difference(end).inHours;
-          _log(
-            'Session ${session.id} ended $hoursSinceEnd hours ago (showing anyway).',
-          );
-
-          final classInfo = await _fetchClassInfo(session.classId, classCache);
-          final teacherName = await _resolveTeacherName(
-            classInfo.teacherId,
-            teacherNameCache,
-          );
-
-          String imagePath = classInfo.bannerPicture;
-          if (imagePath.isEmpty) {
-            imagePath = 'assets/images/guitar.jpg';
+          if (mounted) {
+            setState(() {
+              _schedule
+                ..clear()
+                ..addAll(scheduleItems);
+              _isLoading = false;
+              _errorMessage = null;
+            });
           }
 
-          String meetingUrl = session.classUrl;
-          if (meetingUrl.isEmpty) {
-            final fetchedLink = await _fetchMeetingLink(session.id, token);
-            meetingUrl = fetchedLink ?? '';
-          }
+          // Fetch fresh data in background
+          _fetchScheduleData()
+              .then((freshItems) async {
+                await _scheduleCache.saveSchedule(learnerId, freshItems);
+                if (mounted) {
+                  setState(() {
+                    _schedule
+                      ..clear()
+                      ..addAll(freshItems.map(_toScheduleItem));
+                  });
+                  _log(
+                    '🔄 Updated with fresh data (${freshItems.length} items)',
+                  );
+                }
+              })
+              .catchError((e) {
+                _log('⚠️ Background fetch failed: $e');
+              });
 
-          final enrolledLearner = sessionCountMap[session.id] ?? 1;
-
-          items.add(
-            _LearnerScheduleItem(
-              classSessionId: session.id,
-              className: classInfo.className.isNotEmpty
-                  ? classInfo.className
-                  : session.description,
-              teacherName: teacherName,
-              start: start,
-              end: end,
-              meetingUrl: meetingUrl,
-              imagePath: imagePath,
-              enrolledLearner: enrolledLearner,
-            ),
-          );
-        } catch (e) {
-          _log('Failed to process session ${enrollment.classSessionId}: $e');
+          return;
         }
       }
 
-      // Sort: upcoming first, then past (most recent first)
-      items.sort((a, b) {
-        final aNow = now.isBefore(a.end);
-        final bNow = now.isBefore(b.end);
-        if (aNow && !bNow) return -1; // a is upcoming, b is past
-        if (!aNow && bNow) return 1; // a is past, b is upcoming
-        // Both same category: sort by start time
-        if (aNow) {
-          return a.start.compareTo(b.start); // upcoming: earliest first
-        } else {
-          return b.start.compareTo(a.start); // past: most recent first
-        }
-      });
-      _log('Prepared ${items.length} sessions (upcoming + past).');
+      // Fetch fresh data
+      final items = await _fetchScheduleData();
+      await _scheduleCache.saveSchedule(learnerId, items);
 
       if (mounted) {
         setState(() {
           _schedule
             ..clear()
-            ..addAll(items);
+            ..addAll(items.map(_toScheduleItem));
           _isLoading = false;
           _errorMessage = null;
         });
@@ -188,6 +244,125 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
         });
       }
     }
+  }
+
+  Future<List<CachedScheduleItem>> _fetchScheduleData() async {
+    final learnerId = await _resolveLearnerId();
+    if (learnerId == null) {
+      throw Exception('ไม่พบข้อมูล Learner ของผู้ใช้คนนี้');
+    }
+
+    final allEnrollments = await enrollment_api.Enrollment.fetchAll();
+    _log('Fetched ${allEnrollments.length} enrollments from API.');
+
+    final activeEnrollments = allEnrollments
+        .where(
+          (e) =>
+              (e.enrollmentStatus.toLowerCase() == 'active') &&
+              e.learnerId == learnerId,
+        )
+        .toList();
+    _log('Active enrollments for learner: ${activeEnrollments.length}.');
+
+    if (activeEnrollments.isEmpty) {
+      return [];
+    }
+
+    final sessionCountMap = <int, int>{};
+    for (final enrollment in allEnrollments.where(
+      (e) => e.enrollmentStatus.toLowerCase() == 'active',
+    )) {
+      sessionCountMap.update(
+        enrollment.classSessionId,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    _log('Computed learner counts for ${sessionCountMap.length} sessions.');
+
+    final now = DateTime.now();
+    final List<CachedScheduleItem> items = [];
+
+    for (final enrollment in activeEnrollments) {
+      _log('Processing enrollment for session ${enrollment.classSessionId}');
+      try {
+        // Use cache manager for session
+        final session = await _scheduleCache.getOrFetchSession(
+          enrollment.classSessionId,
+        );
+
+        final start = DateTime.parse(session.classStart).toLocal();
+        final end = DateTime.parse(session.classFinish).toLocal();
+
+        // Use cache manager for class info
+        final classInfo = await _scheduleCache.getOrFetchClassInfo(
+          session.classId,
+        );
+
+        // Use cache manager for teacher name
+        final teacherName = await _scheduleCache.getOrFetchTeacherName(
+          classInfo.teacherId,
+        );
+
+        String imagePath =
+            classInfo.bannerPictureUrl ?? classInfo.bannerPicture ?? '';
+        if (imagePath.isEmpty) {
+          imagePath = 'assets/images/guitar.jpg';
+        }
+
+        // Use class_url from session directly (auto-generated by backend)
+        String meetingUrl = session.classUrl;
+
+        final enrolledLearner = sessionCountMap[session.id] ?? 1;
+
+        items.add(
+          CachedScheduleItem(
+            classSessionId: session.id,
+            className: classInfo.className.isNotEmpty
+                ? classInfo.className
+                : session.description,
+            teacherName: teacherName,
+            start: start,
+            end: end,
+            meetingUrl: meetingUrl,
+            imagePath: imagePath,
+            enrolledLearner: enrolledLearner,
+          ),
+        );
+      } catch (e) {
+        _log('Failed to process session ${enrollment.classSessionId}: $e');
+      }
+    }
+
+    // Sort: upcoming first, then past (most recent first)
+    items.sort((a, b) {
+      final aNow = now.isBefore(a.end);
+      final bNow = now.isBefore(b.end);
+      if (aNow && !bNow) return -1; // a is upcoming, b is past
+      if (!aNow && bNow) return 1; // a is past, b is upcoming
+      // Both same category: sort by start time
+      if (aNow) {
+        return a.start.compareTo(b.start); // upcoming: earliest first
+      } else {
+        return b.start.compareTo(a.start); // past: most recent first
+      }
+    });
+    _log('Prepared ${items.length} sessions (upcoming + past).');
+
+    return items;
+  }
+
+  _LearnerScheduleItem _toScheduleItem(CachedScheduleItem cached) {
+    return _LearnerScheduleItem(
+      classSessionId: cached.classSessionId,
+      className: cached.className,
+      teacherName: cached.teacherName,
+      start: cached.start,
+      end: cached.end,
+      meetingUrl: cached.meetingUrl,
+      imagePath: cached.imagePath,
+      enrolledLearner: cached.enrolledLearner,
+    );
   }
 
   Future<int?> _resolveLearnerId() async {
@@ -242,100 +417,85 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
     return null;
   }
 
-  Future<class_session_api.ClassSession> _fetchClassSession(
-    int sessionId,
-    Map<int, class_session_api.ClassSession> cache,
-  ) async {
-    if (cache.containsKey(sessionId)) {
-      _log('Session $sessionId retrieved from cache.');
-      return cache[sessionId]!;
-    }
-    _log('Fetching session $sessionId from API.');
-    final session = await class_session_api.ClassSession.fetchById(sessionId);
-    cache[sessionId] = session;
-    return session;
+  bool _canCancelClass(_LearnerScheduleItem item) {
+    final now = DateTime.now();
+    final hoursUntilClass = item.start.difference(now).inHours;
+    return hoursUntilClass >= 2;
   }
 
-  Future<class_api.ClassInfo> _fetchClassInfo(
-    int classId,
-    Map<int, class_api.ClassInfo> cache,
-  ) async {
-    if (cache.containsKey(classId)) {
-      _log('Class $classId retrieved from cache.');
-      return cache[classId]!;
-    }
-    _log('Fetching class $classId from API.');
-    final info = await class_api.ClassInfo.fetchById(classId);
-    cache[classId] = info;
-    return info;
-  }
-
-  Future<String> _resolveTeacherName(
-    int teacherId,
-    Map<int, String> cache,
-  ) async {
-    if (cache.containsKey(teacherId)) {
-      return cache[teacherId]!;
-    }
-
-    if (teacherId == 0) {
-      _log('Teacher ID missing for class; using fallback.');
-      const fallback = 'Teacher';
-      cache[teacherId] = fallback;
-      return fallback;
-    }
-
-    try {
-      final teacher = await teacher_api.Teacher.fetchById(teacherId);
-      final teacherUser = await user_api.User.fetchById(teacher.userId);
-      final name =
-          '${teacherUser.firstName ?? ''} ${teacherUser.lastName ?? ''}'.trim();
-      if (name.isNotEmpty) {
-        cache[teacherId] = name;
-        return name;
-      }
-    } catch (e) {
-      debugPrint('⚠️ Failed to load teacher name: $e');
-    }
-
-    const fallback = 'Teacher';
-    cache[teacherId] = fallback;
-    return fallback;
-  }
-
-  Future<String?> _fetchMeetingLink(int sessionId, String? token) async {
-    if (token == null || token.isEmpty) {
-      _log('Skip meeting fetch for session $sessionId (no token).');
-      return null;
-    }
-
-    try {
-      final response = await meeting_api.MeetingService.fetchByClassSessionId(
-        sessionId,
-        token: token,
+  Future<void> _cancelClass(_LearnerScheduleItem item) async {
+    if (!_canCancelClass(item)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ไม่สามารถยกเลิกคลาสได้ (ต้องยกเลิกก่อน 2 ชั่วโมง)'),
+          backgroundColor: Colors.red,
+        ),
       );
-      _log('Meeting raw response for session $sessionId: ${response.data}');
-      String? link = response.link;
-      if (link == null || link.isEmpty) {
-        for (final entry in response.data.entries) {
-          final value = entry.value;
-          if (value is String && value.startsWith('http')) {
-            link = value;
-            break;
-          }
-        }
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ยืนยันการยกเลิก'),
+        content: Text('คุณต้องการยกเลิกคลาส "${item.className}" หรือไม่?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ไม่ใช่'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('ยกเลิก'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final learnerId = await _resolveLearnerId();
+      if (learnerId == null) {
+        throw Exception('ไม่พบข้อมูล Learner');
       }
 
-      if (link != null && link.isNotEmpty) {
-        _log('Meeting link for session $sessionId resolved: $link');
-        return link;
-      }
+      // หา enrollment id
+      final allEnrollments = await enrollment_api.Enrollment.fetchAll();
+      final enrollment = allEnrollments.firstWhere(
+        (e) =>
+            e.learnerId == learnerId &&
+            e.classSessionId == item.classSessionId &&
+            e.enrollmentStatus.toLowerCase() == 'active',
+      );
 
-      _log('Meeting response for session $sessionId did not contain a URL.');
-      return null;
+      // ลบ enrollment
+      await enrollment_api.Enrollment.delete(enrollment.classSessionId);
+
+      // Cancel scheduled notifications for this class
+      await NotificationSchedulerService().cancelForSession(item.classSessionId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ยกเลิกคลาสสำเร็จ และยกเลิกการแจ้งเตือนแล้ว'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Reload schedule
+        await _loadSchedule(isRefresh: true);
+      }
     } catch (e) {
-      _log('Meeting link fetch failed for session $sessionId: $e');
-      return null;
+      _log('Failed to cancel class: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาด: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -421,12 +581,25 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(
-                        Icons.change_circle,
-                        color: Colors.amber,
-                        size: 32,
-                      ),
-                      onPressed: widget.onSwitch,
+                      icon: _isCheckingTeacherStatus
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.amber,
+                                ),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.change_circle,
+                              color: Colors.amber,
+                              size: 32,
+                            ),
+                      onPressed: _isCheckingTeacherStatus
+                          ? null
+                          : _handleSwitchToTeacher,
                       tooltip: 'Switch to Teacher Mode',
                     ),
                   ],
@@ -439,8 +612,11 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
       body: RefreshIndicator(
         onRefresh: () => _loadSchedule(isRefresh: true),
         color: Colors.amber,
+        strokeWidth: 3,
         child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
           padding: const EdgeInsets.only(
             top: 24,
             left: 16,
@@ -474,39 +650,52 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
               ),
             ),
             const SizedBox(height: 20),
-            if (_isLoading) ...[
-              const SizedBox(height: 100),
-              const Center(
-                child: CircularProgressIndicator(color: Colors.amber),
-              ),
-            ] else if (_errorMessage != null) ...[
-              _buildErrorSection(),
-            ] else if (_schedule.isEmpty) ...[
-              _buildEmptyState(),
-            ] else ...[
-              for (final item in _schedule) ...[
-                GestureDetector(
-                  onTap: () => _openClass(item),
-                  child: ScheduleCardLearner(
-                    className: item.className,
-                    enrolledLearner: item.enrolledLearner,
-                    teacherName: item.teacherName,
-                    date: item.start,
-                    startTime: TimeOfDay.fromDateTime(item.start),
-                    endTime: TimeOfDay.fromDateTime(item.end),
-                    imagePath: item.imagePath,
-                    classSessionId: item.classSessionId,
-                    classUrl: item.meetingUrl,
-                    isTeacher: false,
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ],
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeInOut,
+              switchOutCurve: Curves.easeInOut,
+              child: _buildContent(),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const LoadingListSkeleton(itemCount: 3);
+    } else if (_errorMessage != null) {
+      return _buildErrorSection();
+    } else if (_schedule.isEmpty) {
+      return _buildEmptyState();
+    } else {
+      return Column(
+        key: const ValueKey('schedule_list'),
+        children: [
+          for (final item in _schedule) ...[
+            GestureDetector(
+              onTap: () => _openClass(item),
+              child: ScheduleCardLearner(
+                className: item.className,
+                enrolledLearner: item.enrolledLearner,
+                teacherName: item.teacherName,
+                date: item.start,
+                startTime: TimeOfDay.fromDateTime(item.start),
+                endTime: TimeOfDay.fromDateTime(item.end),
+                imagePath: item.imagePath,
+                classSessionId: item.classSessionId,
+                classUrl: item.meetingUrl,
+                isTeacher: false,
+                onCancel: () => _cancelClass(item),
+                canCancel: _canCancelClass(item),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ],
+      );
+    }
   }
 
   Widget _buildErrorSection() {

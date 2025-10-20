@@ -38,17 +38,17 @@ class _NotificationPageState extends State<NotificationPage>
   }
 
   Future<void> fetchNotifications() async {
-    print("📱 [PAGE] Starting fetchNotifications...");
+    debugPrint("📱 [PAGE] Starting fetchNotifications...");
     setState(() => isLoading = true);
     try {
       final currentUserId = await getCurrentUserId();
-      print("📱 [PAGE] Current user ID: $currentUserId");
+      debugPrint("📱 [PAGE] Current user ID: $currentUserId");
 
       final data = await _notiService.fetchNotifications(currentUserId);
-      print("📱 [PAGE] Received data from service:");
-      print("   - Learner: ${data["learner"]!.length}");
-      print("   - Teacher: ${data["teacher"]!.length}");
-      print("   - System: ${data["system"]!.length}");
+      debugPrint("📱 [PAGE] Received data from service:");
+      debugPrint("   - Learner: ${data["learner"]!.length}");
+      debugPrint("   - Teacher: ${data["teacher"]!.length}");
+      debugPrint("   - System: ${data["system"]!.length}");
 
       setState(() {
         notificationData["learner"] = data["learner"]!;
@@ -57,29 +57,29 @@ class _NotificationPageState extends State<NotificationPage>
         isLoading = false;
       });
 
-      print("✅ [PAGE] Notifications loaded successfully");
+      debugPrint("✅ [PAGE] Notifications loaded successfully");
     } catch (e, stackTrace) {
       setState(() {
         isLoading = false;
         hasError = true;
       });
-      print("❌ [PAGE] Error fetching notifications: $e");
-      print("❌ [PAGE] Stack trace: $stackTrace");
+      debugPrint("❌ [PAGE] Error fetching notifications: $e");
+      debugPrint("❌ [PAGE] Stack trace: $stackTrace");
       debugPrint("Error fetching notifications: $e");
     }
   }
 
   Future<int> getCurrentUserId() async {
-    print("👤 [PAGE] Getting current user ID from cache...");
+    debugPrint("👤 [PAGE] Getting current user ID from cache...");
     final userCache = UserCache();
 
     if (userCache.hasUser && userCache.user != null) {
       final userId = userCache.user!.id;
-      print("👤 [PAGE] Found user ID in cache: $userId");
+      debugPrint("👤 [PAGE] Found user ID in cache: $userId");
       return userId;
     }
 
-    print("⚠️  [PAGE] No user in cache, returning fallback user ID: 2");
+    debugPrint("⚠️  [PAGE] No user in cache, returning fallback user ID: 2");
     // Fallback to user ID 2 (Bob Learner) for testing
     return 2;
   }
@@ -89,11 +89,11 @@ class _NotificationPageState extends State<NotificationPage>
   }
 
   Future<void> deleteSelected() async {
-    print("🗑️  [PAGE] Delete selected called");
-    print("🗑️  [PAGE] Selected IDs: $selectedNotifications");
+    debugPrint("🗑️  [PAGE] Delete selected called");
+    debugPrint("🗑️  [PAGE] Selected IDs: $selectedNotifications");
 
     if (selectedNotifications.isEmpty) {
-      print("⚠️  [PAGE] No notifications selected");
+      debugPrint("⚠️  [PAGE] No notifications selected");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("No notifications selected")),
       );
@@ -107,16 +107,16 @@ class _NotificationPageState extends State<NotificationPage>
 
     for (final id in selectedNotifications) {
       try {
-        print("🗑️  [PAGE] Deleting notification $id...");
+        debugPrint("🗑️  [PAGE] Deleting notification $id...");
         await _notiService.deleteNotification(id);
         successCount++;
       } catch (e) {
-        print("❌ [PAGE] Failed to delete $id: $e");
+        debugPrint("❌ [PAGE] Failed to delete $id: $e");
         failCount++;
       }
     }
 
-    print(
+    debugPrint(
       "🗑️  [PAGE] Deletion complete: $successCount success, $failCount failed",
     );
 
@@ -126,7 +126,7 @@ class _NotificationPageState extends State<NotificationPage>
         (n) => selectedNotifications.contains(n["id"]),
       );
       final afterCount = notificationData[key]!.length;
-      print("🗑️  [PAGE] $key: $beforeCount -> $afterCount");
+      debugPrint("🗑️  [PAGE] $key: $beforeCount -> $afterCount");
     }
 
     selectedNotifications.clear();
@@ -138,11 +138,11 @@ class _NotificationPageState extends State<NotificationPage>
   }
 
   Future<void> markSelectedAsRead() async {
-    print("📖 [PAGE] Mark selected as read called");
-    print("📖 [PAGE] Selected IDs: $selectedNotifications");
+    debugPrint("📖 [PAGE] Mark selected as read called");
+    debugPrint("📖 [PAGE] Selected IDs: $selectedNotifications");
 
     if (selectedNotifications.isEmpty) {
-      print("⚠️  [PAGE] No notifications selected");
+      debugPrint("⚠️  [PAGE] No notifications selected");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("No notifications selected")),
       );
@@ -159,10 +159,12 @@ class _NotificationPageState extends State<NotificationPage>
         )
         .toList();
 
-    print("📖 [PAGE] Found ${selected.length} unread notifications to mark");
+    debugPrint(
+      "📖 [PAGE] Found ${selected.length} unread notifications to mark",
+    );
 
     if (selected.isEmpty) {
-      print("⚠️  [PAGE] All selected are already read");
+      debugPrint("⚠️  [PAGE] All selected are already read");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("All selected are already read")),
       );
@@ -175,7 +177,7 @@ class _NotificationPageState extends State<NotificationPage>
 
     for (final n in selected) {
       try {
-        print("📖 [PAGE] Marking notification ${n["id"]} as read...");
+        debugPrint("📖 [PAGE] Marking notification ${n["id"]} as read...");
         n["isRead"] = true;
         final result = await _notiService.markAsRead(n);
         if (result) {
@@ -184,12 +186,12 @@ class _NotificationPageState extends State<NotificationPage>
           failCount++;
         }
       } catch (e) {
-        print("❌ [PAGE] Failed to mark ${n["id"]} as read: $e");
+        debugPrint("❌ [PAGE] Failed to mark ${n["id"]} as read: $e");
         failCount++;
       }
     }
 
-    print(
+    debugPrint(
       "📖 [PAGE] Mark as read complete: $successCount success, $failCount failed",
     );
 
@@ -244,22 +246,24 @@ class _NotificationPageState extends State<NotificationPage>
         ),
         onTap: () async {
           if (isSelecting) {
-            print("📱 [PAGE] Toggling selection for notification ${n["id"]}");
+            debugPrint(
+              "📱 [PAGE] Toggling selection for notification ${n["id"]}",
+            );
             setState(() {
               if (isSelected) {
                 selectedNotifications.remove(n["id"]);
-                print("   ➖ Removed from selection");
+                debugPrint("   ➖ Removed from selection");
               } else {
                 selectedNotifications.add(n["id"]);
-                print("   ➕ Added to selection");
+                debugPrint("   ➕ Added to selection");
               }
             });
           } else {
-            print("📱 [PAGE] Tapped notification ${n["id"]}");
-            print("   - Was read: ${n["isRead"]}");
+            debugPrint("📱 [PAGE] Tapped notification ${n["id"]}");
+            debugPrint("   - Was read: ${n["isRead"]}");
             setState(() => n["isRead"] = true);
             final result = await _notiService.markAsRead(n);
-            print("   - Mark as read result: $result");
+            debugPrint("   - Mark as read result: $result");
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -273,18 +277,18 @@ class _NotificationPageState extends State<NotificationPage>
   }
 
   Widget buildTabContent(String key) {
-    print("📋 [PAGE] Building tab content for: $key");
+    debugPrint("📋 [PAGE] Building tab content for: $key");
     final notis = notificationData[key]!;
-    print("📋 [PAGE] $key notifications count: ${notis.length}");
+    debugPrint("📋 [PAGE] $key notifications count: ${notis.length}");
 
     if (notis.isEmpty) {
-      print("📋 [PAGE] No notifications in $key tab");
+      debugPrint("📋 [PAGE] No notifications in $key tab");
       return const Center(child: Text("No notifications"));
     }
 
     return RefreshIndicator(
       onRefresh: () {
-        print("🔄 [PAGE] Pull to refresh triggered for $key tab");
+        debugPrint("🔄 [PAGE] Pull to refresh triggered for $key tab");
         return fetchNotifications();
       },
       child: ListView(
@@ -310,18 +314,18 @@ class _NotificationPageState extends State<NotificationPage>
 
   @override
   Widget build(BuildContext context) {
-    print("🎨 [PAGE] Building NotificationPage widget");
-    print("   - isLoading: $isLoading");
-    print("   - hasError: $hasError");
-    print("   - isSelecting: $isSelecting");
+    debugPrint("🎨 [PAGE] Building NotificationPage widget");
+    debugPrint("   - isLoading: $isLoading");
+    debugPrint("   - hasError: $hasError");
+    debugPrint("   - isSelecting: $isSelecting");
 
     if (isLoading) {
-      print("⏳ [PAGE] Showing loading indicator");
+      debugPrint("⏳ [PAGE] Showing loading indicator");
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (hasError) {
-      print("⚠️  [PAGE] Showing error state");
+      debugPrint("⚠️  [PAGE] Showing error state");
       return Scaffold(
         appBar: AppBar(title: const Text("Notifications")),
         body: Center(
@@ -332,7 +336,7 @@ class _NotificationPageState extends State<NotificationPage>
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () {
-                  print("🔄 [PAGE] Retry button pressed");
+                  debugPrint("🔄 [PAGE] Retry button pressed");
                   setState(() => hasError = false);
                   fetchNotifications();
                 },

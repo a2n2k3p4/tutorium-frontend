@@ -182,11 +182,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       }
 
       // Start polling for payment status
-      _updateStatus(
-        PaymentStatus.pending,
-        'รอการชำระเงิน',
-        errorDetails: 'Charge ID: $_chargeId',
-      );
+      _updateStatus(PaymentStatus.pending, 'รอการชำระเงิน');
       _startPolling();
     } on TimeoutException catch (e) {
       _updateStatus(
@@ -238,11 +234,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           _navigateBackWithSuccess();
         } else if (!isAutoPolling) {
           // Manual check but not paid yet
-          _updateStatus(
-            PaymentStatus.pending,
-            'ยังไม่ได้รับการชำระเงิน',
-            errorDetails: 'สถานะ: ${body['status'] ?? 'pending'}',
-          );
+          _updateStatus(PaymentStatus.pending, 'ยังไม่ได้รับการชำระเงิน');
         }
       } else {
         if (!isAutoPolling) {
@@ -435,28 +427,13 @@ class _PaymentScreenState extends State<PaymentScreen>
             ),
           ),
 
-          // Charge ID (if available)
-          if (_chargeId != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Charge ID: $_chargeId',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ),
-          ],
-
-          // Error details (if available)
-          if (_errorDetails != null && _errorDetails!.isNotEmpty) ...[
+          // Error details (only for failed status, hide technical details)
+          if (_status == PaymentStatus.failed &&
+              _errorDetails != null &&
+              _errorDetails!.isNotEmpty &&
+              !_errorDetails!.startsWith('Charge ID:') &&
+              !_errorDetails!.startsWith('Response:') &&
+              !_errorDetails!.startsWith('HTTP')) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),

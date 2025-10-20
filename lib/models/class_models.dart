@@ -18,12 +18,16 @@ class ClassModel {
 
   factory ClassModel.fromJson(Map<String, dynamic> json) {
     return ClassModel(
-      id: json['id'],
-      className: json['class_name'],
-      classDescription: json['class_description'],
-      bannerPicture: json['banner_picture'],
-      rating: (json['rating'] ?? 0).toDouble(),
-      teacherId: json['teacher_id'],
+      id: json['id'] ?? json['ID'] ?? 0,
+      className: json['class_name'] ?? '',
+      classDescription: json['class_description'] ?? '',
+      bannerPicture: json['banner_picture'] ?? json['banner_picture_url'],
+      rating: _parseDouble(json['rating'] ?? json['average_rating']),
+      teacherId:
+          json['teacher_id'] ??
+          json['Teacher']?['ID'] ??
+          json['Teacher']?['id'] ??
+          0,
     );
   }
 
@@ -37,6 +41,14 @@ class ClassModel {
       'teacher_id': teacherId,
     };
   }
+}
+
+double _parseDouble(dynamic value) {
+  if (value == null) return 0;
+  if (value is num) {
+    return value.toDouble();
+  }
+  return double.tryParse(value.toString()) ?? 0;
 }
 
 // Class Category Model
@@ -79,6 +91,7 @@ class ClassSession {
   final String description;
   final int learnerLimit;
   final double price;
+  final String? classUrl;
 
   ClassSession({
     required this.id,
@@ -90,6 +103,7 @@ class ClassSession {
     required this.description,
     required this.learnerLimit,
     required this.price,
+    this.classUrl,
   });
 
   factory ClassSession.fromJson(Map<String, dynamic> json) {
@@ -103,6 +117,7 @@ class ClassSession {
       description: json['description'],
       learnerLimit: json['learner_limit'],
       price: (json['price'] ?? 0).toDouble(),
+      classUrl: json['class_url'],
     );
   }
 
@@ -117,6 +132,7 @@ class ClassSession {
       'description': description,
       'learner_limit': learnerLimit,
       'price': price,
+      'class_url': classUrl,
     };
   }
 }
