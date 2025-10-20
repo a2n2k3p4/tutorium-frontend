@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -10,21 +11,25 @@ class NotificationService {
   ) async {
     try {
       final url = Uri.parse("$baseUrl/notifications");
-      print("🔵 [DEBUG] Fetching notifications from: $url");
-      print("🔵 [DEBUG] Current userId: $userId");
+      debugPrint("🔵 [DEBUG] Fetching notifications from: $url");
+      debugPrint("🔵 [DEBUG] Current userId: $userId");
 
       final response = await http.get(url);
-      print("🔵 [DEBUG] Response status: ${response.statusCode}");
-      print("🔵 [DEBUG] Response body length: ${response.body.length} chars");
+      debugPrint("🔵 [DEBUG] Response status: ${response.statusCode}");
+      debugPrint(
+        "🔵 [DEBUG] Response body length: ${response.body.length} chars",
+      );
 
       if (response.statusCode != 200) {
-        print("❌ [ERROR] Failed to load notifications: ${response.statusCode}");
-        print("❌ [ERROR] Response body: ${response.body}");
+        debugPrint(
+          "❌ [ERROR] Failed to load notifications: ${response.statusCode}",
+        );
+        debugPrint("❌ [ERROR] Response body: ${response.body}");
         throw Exception("Failed to load notifications");
       }
 
       final List<dynamic> data = jsonDecode(response.body);
-      print("🔵 [DEBUG] Total notifications received: ${data.length}");
+      debugPrint("🔵 [DEBUG] Total notifications received: ${data.length}");
 
       final Map<String, List<Map<String, dynamic>>> categorized = {
         "learner": [],
@@ -36,10 +41,10 @@ class NotificationService {
       int skippedCount = 0;
 
       for (var n in data) {
-        print("🔍 [DEBUG] Processing notification ID: ${n["ID"]}");
-        print("   - user_id: ${n["user_id"]}");
-        print("   - notification_type: ${n["notification_type"]}");
-        print("   - read_flag: ${n["read_flag"]}");
+        debugPrint("🔍 [DEBUG] Processing notification ID: ${n["ID"]}");
+        debugPrint("   - user_id: ${n["user_id"]}");
+        debugPrint("   - notification_type: ${n["notification_type"]}");
+        debugPrint("   - read_flag: ${n["read_flag"]}");
 
         if (n["user_id"] == userId) {
           matchedCount++;
@@ -59,57 +64,59 @@ class NotificationService {
 
           // Categorize based on notification_type
           final category = _categorizeNotification(notificationType);
-          print("   ✅ Matched! Type: $notificationType -> Category: $category");
+          debugPrint(
+            "   ✅ Matched! Type: $notificationType -> Category: $category",
+          );
 
           categorized[category]!.add(mapped);
         } else {
           skippedCount++;
-          print(
+          debugPrint(
             "   ⏭️  Skipped (user_id mismatch: ${n["user_id"]} != $userId)",
           );
         }
       }
 
-      print("🎯 [SUMMARY] Matched: $matchedCount, Skipped: $skippedCount");
-      print("🎯 [SUMMARY] Learner: ${categorized["learner"]!.length}");
-      print("🎯 [SUMMARY] Teacher: ${categorized["teacher"]!.length}");
-      print("🎯 [SUMMARY] System: ${categorized["system"]!.length}");
+      debugPrint("🎯 [SUMMARY] Matched: $matchedCount, Skipped: $skippedCount");
+      debugPrint("🎯 [SUMMARY] Learner: ${categorized["learner"]!.length}");
+      debugPrint("🎯 [SUMMARY] Teacher: ${categorized["teacher"]!.length}");
+      debugPrint("🎯 [SUMMARY] System: ${categorized["system"]!.length}");
 
       return categorized;
     } catch (e, stackTrace) {
-      print("❌ [ERROR] Exception in fetchNotifications: $e");
-      print("❌ [STACK] $stackTrace");
+      debugPrint("❌ [ERROR] Exception in fetchNotifications: $e");
+      debugPrint("❌ [STACK] $stackTrace");
       throw Exception("Error fetching notifications: $e");
     }
   }
 
   Future<void> deleteNotification(int id) async {
-    print("🗑️  [DEBUG] Deleting notification ID: $id");
+    debugPrint("🗑️  [DEBUG] Deleting notification ID: $id");
     final url = Uri.parse("$baseUrl/notifications/$id");
-    print("🗑️  [DEBUG] DELETE URL: $url");
+    debugPrint("🗑️  [DEBUG] DELETE URL: $url");
 
     final response = await http.delete(
       url,
       headers: {'accept': 'application/json'},
     );
 
-    print("🗑️  [DEBUG] Delete response status: ${response.statusCode}");
-    print("🗑️  [DEBUG] Delete response body: ${response.body}");
+    debugPrint("🗑️  [DEBUG] Delete response status: ${response.statusCode}");
+    debugPrint("🗑️  [DEBUG] Delete response body: ${response.body}");
 
     if (response.statusCode != 200 && response.statusCode != 204) {
-      print("❌ [ERROR] Failed to delete notification $id");
+      debugPrint("❌ [ERROR] Failed to delete notification $id");
       throw Exception('Failed to delete notification $id');
     }
 
-    print("✅ [SUCCESS] Notification $id deleted");
+    debugPrint("✅ [SUCCESS] Notification $id deleted");
   }
 
   Future<bool> markAsRead(Map<String, dynamic> notification) async {
     final int id = notification["id"];
     final String url = "$baseUrl/notifications/$id";
 
-    print("📖 [DEBUG] Marking notification as read: $id");
-    print("📖 [DEBUG] URL: $url");
+    debugPrint("📖 [DEBUG] Marking notification as read: $id");
+    debugPrint("📖 [DEBUG] URL: $url");
 
     final body = {
       "notification_date": notification["time"],
@@ -119,7 +126,7 @@ class NotificationService {
       "user_id": notification["userId"],
     };
 
-    print("📖 [DEBUG] Request body: ${jsonEncode(body)}");
+    debugPrint("📖 [DEBUG] Request body: ${jsonEncode(body)}");
 
     try {
       final response = await http.put(
@@ -131,21 +138,21 @@ class NotificationService {
         body: jsonEncode(body),
       );
 
-      print("📖 [DEBUG] Response status: ${response.statusCode}");
-      print("📖 [DEBUG] Response body: ${response.body}");
+      debugPrint("📖 [DEBUG] Response status: ${response.statusCode}");
+      debugPrint("📖 [DEBUG] Response body: ${response.body}");
 
       if (response.statusCode == 200) {
-        print("✅ [SUCCESS] Notification $id marked as read");
+        debugPrint("✅ [SUCCESS] Notification $id marked as read");
         return true;
       } else {
-        print(
+        debugPrint(
           "❌ [ERROR] Failed to mark as read (${response.statusCode}): ${response.body}",
         );
         return false;
       }
     } catch (e, stackTrace) {
-      print("❌ [ERROR] Exception marking notification as read: $e");
-      print("❌ [STACK] $stackTrace");
+      debugPrint("❌ [ERROR] Exception marking notification as read: $e");
+      debugPrint("❌ [STACK] $stackTrace");
       return false;
     }
   }
@@ -213,7 +220,7 @@ class NotificationService {
         return "${dateTime.day}/${dateTime.month}/${dateTime.year}";
       }
     } catch (e) {
-      print("⚠️  [WARN] Failed to parse datetime: $dateTimeStr");
+      debugPrint("⚠️  [WARN] Failed to parse datetime: $dateTimeStr");
       return dateTimeStr;
     }
   }

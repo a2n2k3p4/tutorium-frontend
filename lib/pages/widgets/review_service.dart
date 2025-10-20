@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -60,7 +61,7 @@ class ReviewService {
       }
       return [];
     } catch (e) {
-      print("Error loading reviews: $e");
+      debugPrint("Error loading reviews: $e");
       return [];
     }
   }
@@ -76,7 +77,7 @@ class ReviewService {
       }
       return {};
     } catch (e) {
-      print("Error loading users: $e");
+      debugPrint("Error loading users: $e");
       return {};
     }
   }

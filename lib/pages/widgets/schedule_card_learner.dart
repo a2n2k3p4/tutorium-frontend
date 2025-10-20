@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:tutorium_frontend/pages/learn/learn.dart';
+import 'package:tutorium_frontend/util/custom_cache_manager.dart';
 
 class ScheduleCardLearner extends StatelessWidget {
   final String className;
@@ -14,6 +16,8 @@ class ScheduleCardLearner extends StatelessWidget {
   final int classSessionId;
   final String classUrl;
   final bool isTeacher;
+  final VoidCallback? onCancel;
+  final bool canCancel;
 
   const ScheduleCardLearner({
     super.key,
@@ -27,6 +31,8 @@ class ScheduleCardLearner extends StatelessWidget {
     required this.classSessionId,
     required this.classUrl,
     this.isTeacher = false,
+    this.onCancel,
+    this.canCancel = false,
   });
 
   String formatTime24(TimeOfDay time) {
@@ -284,6 +290,52 @@ class ScheduleCardLearner extends StatelessWidget {
                   ),
                 ),
               ),
+            // Cancel button for upcoming classes
+            if (!isHappeningNow && !isPast && onCancel != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
+                  ),
+                ),
+                child: TextButton.icon(
+                  onPressed: canCancel ? onCancel : null,
+                  icon: Icon(
+                    Icons.cancel_outlined,
+                    size: 18,
+                    color: canCancel ? Colors.red : Colors.grey,
+                  ),
+                  label: Text(
+                    canCancel
+                        ? 'ยกเลิกคลาส'
+                        : 'ไม่สามารถยกเลิกได้ (ต้องยกเลิกก่อน 2 ชม.)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: canCancel ? Colors.red : Colors.grey,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: canCancel
+                        ? Colors.red[50]
+                        : Colors.grey[100],
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -312,12 +364,27 @@ class ScheduleCardLearner extends StatelessWidget {
     }
 
     if (imagePath.toLowerCase().startsWith('http')) {
-      return Image.network(
-        imagePath,
+      return CachedNetworkImage(
+        imageUrl: imagePath,
         width: width,
         height: height,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallbackImage(width, height, fallback),
+        cacheManager: ClassImageCacheManager(),
+        fadeInDuration: const Duration(milliseconds: 300),
+        fadeOutDuration: const Duration(milliseconds: 100),
+        placeholder: (context, url) => Container(
+          width: width,
+          height: height,
+          color: Colors.grey[200],
+          child: const Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) =>
+            _fallbackImage(width, height, fallback),
       );
     }
 

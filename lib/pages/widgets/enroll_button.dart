@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:tutorium_frontend/service/ClassSessions.dart';
-import 'package:tutorium_frontend/service/Enrollments.dart';
+import 'package:tutorium_frontend/service/class_sessions.dart';
+import 'package:tutorium_frontend/service/enrollments.dart';
 import 'package:tutorium_frontend/util/schedule_validator.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_conflict_dialog.dart';
+import 'package:tutorium_frontend/services/local_notification_service.dart';
+import 'package:tutorium_frontend/service/classes.dart';
 
 /// ปุ่ม Enroll พร้อมตรวจสอบเวลาทับกัน
 class EnrollButton extends StatefulWidget {
@@ -88,11 +90,37 @@ class _EnrollButtonState extends State<EnrollButton> {
 
       await Enrollment.create(enrollment);
 
+      // 4. ดึงข้อมูล session และ class เพื่อ schedule notification
+      try {
+        final session = await ClassSession.fetchById(widget.sessionId);
+        final classInfo = await ClassInfo.fetchById(session.classId);
+
+        // Schedule class reminders
+        await LocalNotificationService().scheduleClassReminders(
+          classSessionId: widget.sessionId,
+          className: classInfo.className,
+          classStartTime: session.classStart.toLocal(),
+        );
+
+        // Show enrollment success notification
+        await LocalNotificationService().showEnrollmentSuccess(
+          className: classInfo.className,
+          classStartTime: session.classStart.toLocal(),
+        );
+
+        debugPrint(
+          '✅ [Enrollment] Scheduled notifications for ${classInfo.className}',
+        );
+      } catch (e) {
+        debugPrint('⚠️ [Enrollment] Failed to schedule notifications: $e');
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('ลงทะเบียนสำเร็จ!'),
+            content: Text('ลงทะเบียนสำเร็จ! 🎉 คุณจะได้รับการแจ้งเตือนก่อนเรียน'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
           ),
         );
         widget.onEnrollSuccess?.call();

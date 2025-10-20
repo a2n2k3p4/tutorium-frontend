@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:tutorium_frontend/service/ClassSessions.dart';
+import 'package:tutorium_frontend/service/class_sessions.dart';
 import 'package:tutorium_frontend/util/schedule_validator.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_conflict_dialog.dart';
 
