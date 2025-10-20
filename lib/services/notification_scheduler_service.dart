@@ -84,7 +84,7 @@ class NotificationSchedulerService {
           final session = await ClassSession.fetchById(
             enrollment.classSessionId,
           );
-          final classStart = session.classStart.toLocal();
+          final classStart = DateTime.parse(session.classStart).toLocal();
 
           // Only schedule for future classes
           if (classStart.isAfter(now)) {
@@ -141,7 +141,7 @@ class NotificationSchedulerService {
           final session = await ClassSession.fetchById(
             enrollment.classSessionId,
           );
-          final classStart = session.classStart.toLocal();
+          final classStart = DateTime.parse(session.classStart).toLocal();
           final minutesUntilStart = classStart.difference(now).inMinutes;
 
           // If class is starting within 5 minutes
