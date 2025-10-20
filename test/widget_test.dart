@@ -40,33 +40,36 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
   });
 
-  testWidgets(
-    'MainNavPage shows LearnerHomePage with teacher mode switch button',
-    (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MediaQuery(
-            data: const MediaQueryData(size: Size(400, 800)),
-            child: const MainNavPage(),
-          ),
+  testWidgets('MainNavPage shows LearnerHomePage with teacher mode switch button', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(400, 800)),
+          child: const MainNavPage(),
         ),
-      );
+      ),
+    );
 
-      // Wait for initial render and hero animations.
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 450));
+    // Wait for initial render and hero animations.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
 
-      // 1. Check LearnerHomePage
-      expect(find.text('Learner Home').evaluate().isNotEmpty, isTrue);
-      expect(find.text('My Classes').evaluate().isNotEmpty, isTrue);
+    // 1. Check LearnerHomePage
+    expect(find.text('Learner Home').evaluate().isNotEmpty, isTrue);
+    expect(find.text('My Classes').evaluate().isNotEmpty, isTrue);
 
-      // 2. Verify switch to teacher mode button exists
-      final switchButton = find.byTooltip('Switch to Teacher Mode');
-      expect(switchButton, findsOneWidget, reason: 'Switch to Teacher Mode button should exist');
+    // 2. Verify switch to teacher mode button exists
+    final switchButton = find.byTooltip('Switch to Teacher Mode');
+    expect(
+      switchButton,
+      findsOneWidget,
+      reason: 'Switch to Teacher Mode button should exist',
+    );
 
-      // Note: We don't test the actual switch functionality here because it requires
-      // working API endpoints to check teacher eligibility. The switch button existence
-      // verifies the UI renders correctly.
-    },
-  );
+    // Note: We don't test the actual switch functionality here because it requires
+    // working API endpoints to check teacher eligibility. The switch button existence
+    // verifies the UI renders correctly.
+  });
 }
