@@ -5,18 +5,52 @@ import 'package:tutorium_frontend/pages/main_nav_page.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
 import 'package:tutorium_frontend/util/cache_user.dart';
 import 'package:tutorium_frontend/util/connectivity_service.dart';
-import 'package:tutorium_frontend/service/Users.dart' as user_api;
-// import 'package:tutorium_frontend/pages/widgets/noti_service.dart';
+import 'package:tutorium_frontend/util/custom_cache_manager.dart';
+import 'package:tutorium_frontend/util/class_cache_manager.dart';
+import 'package:tutorium_frontend/services/local_notification_service.dart';
+import 'package:tutorium_frontend/services/notification_scheduler_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // NotiService().initNotification();
+
+  // Load environment variables
   await dotenv.load(fileName: ".env");
+
+  // Initialize notification service
+  await LocalNotificationService().initialize();
+  await LocalNotificationService().requestPermissions();
 
   // เริ่มต้น ConnectivityService
   await ConnectivityService().initialize();
 
+  // Pre-initialize cache managers
+  CustomCacheManager();
+  ClassImageCacheManager();
+  ProfileImageCacheManager();
+  await ClassCacheManager().initialize();
+
+  // Start notification scheduler after user check
+  _startNotificationSchedulerIfLoggedIn();
+
   runApp(const MyApp());
+}
+
+/// Start notification scheduler if user is logged in
+Future<void> _startNotificationSchedulerIfLoggedIn() async {
+  try {
+    final userId = await LocalStorage.getUserId();
+    final learnerId = await LocalStorage.getLearnerId();
+
+    if (userId != null && learnerId != null) {
+      // User is logged in, start scheduler
+      await NotificationSchedulerService().start();
+      debugPrint('✅ [Main] Notification scheduler started');
+    } else {
+      debugPrint('ℹ️  [Main] User not logged in, scheduler not started');
+    }
+  } catch (e) {
+    debugPrint('⚠️ [Main] Failed to start notification scheduler: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {
