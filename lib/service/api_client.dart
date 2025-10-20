@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
-import 'Apiservice.dart';
+import 'api_service.dart';
 
 /// Exception thrown when the Tutorium backend responds with a non-success status
 /// code. The [statusCode] and (optional) [body] can be inspected by callers to
@@ -29,6 +31,8 @@ class ApiException implements Exception {
 class ApiClient {
   ApiClient({http.Client? httpClient}) : _client = httpClient ?? http.Client();
 
+  static const Duration _defaultTimeout = Duration(seconds: 12);
+
   final http.Client _client;
 
   Future<dynamic> get(
@@ -37,8 +41,27 @@ class ApiClient {
     Map<String, String>? headers,
   }) async {
     final uri = ApiService.endpoint(path, queryParameters: queryParameters);
-    final response = await _client.get(uri, headers: headers);
-    return _decodeResponse(response);
+    try {
+      final response = await _client
+          .get(uri, headers: headers)
+          .timeout(_defaultTimeout);
+      return _decodeResponse(response);
+    } on TimeoutException {
+      throw ApiException(
+        408,
+        'Request timed out after ${_defaultTimeout.inSeconds}s (GET ${uri.path})',
+      );
+    } on SocketException catch (e) {
+      throw ApiException(
+        503,
+        'Network error: ${_formatNetworkMessage(e.message)}',
+      );
+    } on http.ClientException catch (e) {
+      throw ApiException(
+        503,
+        'Network error: ${_formatNetworkMessage(e.message)}',
+      );
+    }
   }
 
   Future<Map<String, dynamic>> getJsonMap(
@@ -86,12 +109,31 @@ class ApiClient {
     Object? body,
   }) async {
     final uri = ApiService.endpoint(path, queryParameters: queryParameters);
-    final response = await _client.post(
-      uri,
-      headers: _mergeJsonHeader(headers),
-      body: _encodeBody(body),
-    );
-    return _decodeResponse(response);
+    try {
+      final response = await _client
+          .post(
+            uri,
+            headers: _mergeJsonHeader(headers),
+            body: _encodeBody(body),
+          )
+          .timeout(_defaultTimeout);
+      return _decodeResponse(response);
+    } on TimeoutException {
+      throw ApiException(
+        408,
+        'Request timed out after ${_defaultTimeout.inSeconds}s (POST ${uri.path})',
+      );
+    } on SocketException catch (e) {
+      throw ApiException(
+        503,
+        'Network error: ${_formatNetworkMessage(e.message)}',
+      );
+    } on http.ClientException catch (e) {
+      throw ApiException(
+        503,
+        'Network error: ${_formatNetworkMessage(e.message)}',
+      );
+    }
   }
 
   Future<Map<String, dynamic>> postJsonMap(
@@ -122,12 +164,27 @@ class ApiClient {
     Object? body,
   }) async {
     final uri = ApiService.endpoint(path, queryParameters: queryParameters);
-    final response = await _client.put(
-      uri,
-      headers: _mergeJsonHeader(headers),
-      body: _encodeBody(body),
-    );
-    return _decodeResponse(response);
+    try {
+      final response = await _client
+          .put(uri, headers: _mergeJsonHeader(headers), body: _encodeBody(body))
+          .timeout(_defaultTimeout);
+      return _decodeResponse(response);
+    } on TimeoutException {
+      throw ApiException(
+        408,
+        'Request timed out after ${_defaultTimeout.inSeconds}s (PUT ${uri.path})',
+      );
+    } on SocketException catch (e) {
+      throw ApiException(
+        503,
+        'Network error: ${_formatNetworkMessage(e.message)}',
+      );
+    } on http.ClientException catch (e) {
+      throw ApiException(
+        503,
+        'Network error: ${_formatNetworkMessage(e.message)}',
+      );
+    }
   }
 
   Future<Map<String, dynamic>> putJsonMap(
@@ -158,12 +215,37 @@ class ApiClient {
     Object? body,
   }) async {
     final uri = ApiService.endpoint(path, queryParameters: queryParameters);
-    final response = await _client.delete(
-      uri,
-      headers: _mergeJsonHeader(headers),
-      body: _encodeBody(body),
-    );
-    return _decodeResponse(response, allowEmpty: true);
+    try {
+      final response = await _client
+          .delete(
+            uri,
+            headers: _mergeJsonHeader(headers),
+            body: _encodeBody(body),
+          )
+          .timeout(_defaultTimeout);
+      return _decodeResponse(response, allowEmpty: true);
+    } on TimeoutException {
+      throw ApiException(
+        408,
+        'Request timed out after ${_defaultTimeout.inSeconds}s (DELETE ${uri.path})',
+      );
+    } on SocketException catch (e) {
+      throw ApiException(
+        503,
+        'Network error: ${_formatNetworkMessage(e.message)}',
+      );
+    } on http.ClientException catch (e) {
+      throw ApiException(
+        503,
+        'Network error: ${_formatNetworkMessage(e.message)}',
+      );
+    }
+  }
+
+  String _formatNetworkMessage(String? message) {
+    if (message == null) return 'Unable to reach the server';
+    final trimmed = message.trim();
+    return trimmed.isEmpty ? 'Unable to reach the server' : trimmed;
   }
 
   Map<String, String> _mergeJsonHeader(Map<String, String>? headers) {

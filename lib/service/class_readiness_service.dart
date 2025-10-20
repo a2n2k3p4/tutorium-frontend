@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-import 'ClassSessions.dart' as class_sessions;
-import 'Enrollments.dart' as enrollments;
-import 'Learners.dart' as learners;
-import 'Notifications.dart' as notifications;
+import 'class_sessions.dart' as class_sessions;
+import 'enrollments.dart' as enrollments;
+import 'learners.dart' as learners;
+import 'notifications.dart' as notifications;
 
 class ClassReadinessService {
   static const String statusScheduled = 'scheduled';

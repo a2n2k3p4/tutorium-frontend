@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:tutorium_frontend/service/Teachers.dart' as teacher_service;
-import 'package:tutorium_frontend/service/Users.dart' as user_service;
+import 'package:tutorium_frontend/service/teachers.dart' as teacher_service;
+import 'package:tutorium_frontend/service/users.dart' as user_service;
 
 /// Service for handling Teacher registration with transaction-based approach
 /// เป็นระบบที่รับประกัน atomic transaction - ไม่มีสถานะครึ่งๆกลางๆ

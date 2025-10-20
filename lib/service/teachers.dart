@@ -17,12 +17,20 @@ class Teacher {
 
   factory Teacher.fromJson(Map<String, dynamic> json) {
     return Teacher(
-      id: json['ID'] ?? json['id'],
-      userId: json['user_id'] ?? 0,
-      email: json['email'] ?? '',
-      description: json['description'] ?? '',
-      flagCount: json['flag_count'] ?? 0,
+      id: _parseInt(json['ID'] ?? json['id']),
+      userId: _parseInt(json['user_id']) ?? 0,
+      email: json['email']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      flagCount: _parseInt(json['flag_count']) ?? 0,
     );
+  }
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    if (value is double) return value.toInt();
+    return null;
   }
 
   Map<String, dynamic> toJson() {

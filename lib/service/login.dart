@@ -1,5 +1,5 @@
 import 'package:tutorium_frontend/service/api_client.dart';
-import 'package:tutorium_frontend/service/Users.dart';
+import 'package:tutorium_frontend/service/users.dart';
 
 class LoginResponse {
   final String token;
