@@ -118,7 +118,9 @@ class _EnrollButtonState extends State<EnrollButton> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('ลงทะเบียนสำเร็จ! 🎉 คุณจะได้รับการแจ้งเตือนก่อนเรียน'),
+            content: Text(
+              'ลงทะเบียนสำเร็จ! 🎉 คุณจะได้รับการแจ้งเตือนก่อนเรียน',
+            ),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 3),
           ),

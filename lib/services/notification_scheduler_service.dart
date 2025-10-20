@@ -107,13 +107,13 @@ class NotificationSchedulerService {
             _log('⏭️  Skipped past class: ${session.id}');
           }
         } catch (e) {
-          _log('❌ Failed to schedule for session ${enrollment.classSessionId}: $e');
+          _log(
+            '❌ Failed to schedule for session ${enrollment.classSessionId}: $e',
+          );
         }
       }
 
-      _log(
-        '✨ Scheduling complete: $scheduled scheduled, $skipped skipped',
-      );
+      _log('✨ Scheduling complete: $scheduled scheduled, $skipped skipped');
     } catch (e) {
       _log('❌ Error scheduling notifications: $e');
     }

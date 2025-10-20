@@ -560,9 +560,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                         children: List.generate(
                           5,
                           (i) => Icon(
-                            i < rating
-                                ? Icons.star
-                                : Icons.star_border,
+                            i < rating ? Icons.star : Icons.star_border,
                             size: 16,
                             color: i < rating
                                 ? Colors.amber

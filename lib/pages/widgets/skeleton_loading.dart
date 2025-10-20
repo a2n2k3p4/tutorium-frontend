@@ -125,9 +125,7 @@ class SearchCardSkeleton extends StatelessWidget {
               height: 100,
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
               ),
             ),
             Padding(
@@ -191,9 +189,7 @@ class GridCardSkeleton extends StatelessWidget {
               child: Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
                 ),
               ),
             ),

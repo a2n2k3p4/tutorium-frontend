@@ -474,7 +474,9 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
       await enrollment_api.Enrollment.delete(enrollment.classSessionId);
 
       // Cancel scheduled notifications for this class
-      await NotificationSchedulerService().cancelForSession(item.classSessionId);
+      await NotificationSchedulerService().cancelForSession(
+        item.classSessionId,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -838,36 +838,40 @@ class _SearchPageState extends State<SearchPage> {
                             child: _isLoadingRecommended
                                 ? const HorizontalLoadingSkeleton(itemCount: 5)
                                 : _recommendedClasses.isEmpty
-                                    ? const Center(
-                                        key: ValueKey('no_recommended'),
-                                        child: Text('No recommended sessions found'),
-                                      )
-                                    : ListView.builder(
-                                        key: const ValueKey('recommended_list'),
-                                        scrollDirection: Axis.horizontal,
-                                        physics: const BouncingScrollPhysics(),
-                                        itemCount: _recommendedClasses.length,
-                                        itemBuilder: (context, index) {
-                                          final item = _recommendedClasses[index];
-                                          return Padding(
-                                            padding: const EdgeInsets.only(right: 12),
-                                            child: ScheduleCard_search(
-                                              classId: item.classId,
-                                              className: item.className,
-                                              enrolledLearner: item.enrolledLearner,
-                                              learnerLimit: item.learnerLimit,
-                                              teacherName: item.teacherName,
-                                              date: item.date,
-                                              startTime: item.startTime,
-                                              endTime: item.endTime,
-                                              imageUrl: item.imageUrl,
-                                              fallbackAsset:
-                                                  'assets/images/default.jpg',
-                                              rating: item.rating,
-                                            ),
-                                          );
-                                        },
-                                      ),
+                                ? const Center(
+                                    key: ValueKey('no_recommended'),
+                                    child: Text(
+                                      'No recommended sessions found',
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    key: const ValueKey('recommended_list'),
+                                    scrollDirection: Axis.horizontal,
+                                    physics: const BouncingScrollPhysics(),
+                                    itemCount: _recommendedClasses.length,
+                                    itemBuilder: (context, index) {
+                                      final item = _recommendedClasses[index];
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 12,
+                                        ),
+                                        child: ScheduleCard_search(
+                                          classId: item.classId,
+                                          className: item.className,
+                                          enrolledLearner: item.enrolledLearner,
+                                          learnerLimit: item.learnerLimit,
+                                          teacherName: item.teacherName,
+                                          date: item.date,
+                                          startTime: item.startTime,
+                                          endTime: item.endTime,
+                                          imageUrl: item.imageUrl,
+                                          fallbackAsset:
+                                              'assets/images/default.jpg',
+                                          rating: item.rating,
+                                        ),
+                                      );
+                                    },
+                                  ),
                           ),
                         ),
                         Padding(
@@ -928,10 +932,14 @@ class _SearchPageState extends State<SearchPage> {
                                     itemBuilder: (context, index) {
                                       final item = _popularClasses[index];
                                       return Padding(
-                                        padding: const EdgeInsets.only(right: 12),
+                                        padding: const EdgeInsets.only(
+                                          right: 12,
+                                        ),
                                         child: ScheduleCard_search(
                                           classId:
-                                              item['id'] ?? item['classId'] ?? 0,
+                                              item['id'] ??
+                                              item['classId'] ??
+                                              0,
                                           className:
                                               item['class_name'] ??
                                               'Unnamed Class',
@@ -943,7 +951,10 @@ class _SearchPageState extends State<SearchPage> {
                                             hour: 0,
                                             minute: 0,
                                           ),
-                                          endTime: TimeOfDay(hour: 0, minute: 0),
+                                          endTime: TimeOfDay(
+                                            hour: 0,
+                                            minute: 0,
+                                          ),
                                           imageUrl:
                                               (item['banner_picture_url'] ??
                                                       item['banner_picture'] ??
@@ -953,7 +964,8 @@ class _SearchPageState extends State<SearchPage> {
                                               'assets/images/guitar.jpg',
                                           showSchedule: false,
                                           rating: (item['rating'] is num)
-                                              ? (item['rating'] as num).toDouble()
+                                              ? (item['rating'] as num)
+                                                    .toDouble()
                                               : 0.0,
                                         ),
                                       );
