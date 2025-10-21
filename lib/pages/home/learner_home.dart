@@ -298,6 +298,12 @@ class LearnerHomePageState extends State<LearnerHomePage> {
           enrollment.classSessionId,
         );
 
+        // Skip cancelled class sessions
+        if (session.classStatus.toLowerCase() == 'cancelled') {
+          _log('Skipping cancelled session ${session.id}');
+          continue;
+        }
+
         final start = DateTime.parse(session.classStart).toLocal();
         final end = DateTime.parse(session.classFinish).toLocal();
 
@@ -829,7 +835,7 @@ class LearnerHomePageState extends State<LearnerHomePage> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'ยังไม่มีคลาสที่ลงทะเบียนไว้',
+            'คลาสยังไม่เริ่มต้น',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,

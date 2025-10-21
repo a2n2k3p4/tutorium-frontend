@@ -352,8 +352,8 @@ class ScheduleCardLearner extends StatelessWidget {
                   ),
                   label: Text(
                     canCancel
-                        ? 'ยกเลิกคลาส'
-                        : 'ไม่สามารถยกเลิกได้ (ต้องยกเลิกก่อน 2 ชม.)',
+                        ? 'คลาสยังไม่เริ่ม'
+                        : 'ไม่สามารถยกเลิกได้ (คลาสใกล้เริ่มแล้ว)',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
