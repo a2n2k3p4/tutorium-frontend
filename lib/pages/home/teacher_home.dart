@@ -4,7 +4,6 @@ import 'package:tutorium_frontend/pages/home/teacher/my_classes_page.dart';
 import 'package:tutorium_frontend/pages/home/teacher/create_class_page.dart';
 import 'package:tutorium_frontend/pages/home/teacher/create_session_page.dart';
 import 'package:tutorium_frontend/pages/home/teacher/register/payment_screen.dart';
-import 'package:tutorium_frontend/service/classes.dart' as class_api;
 import 'package:tutorium_frontend/service/users.dart' as user_api;
 import 'package:tutorium_frontend/pages/widgets/api_service.dart' as legacy_api;
 import 'package:tutorium_frontend/util/cache_user.dart';
@@ -17,10 +16,10 @@ class TeacherHomePage extends StatefulWidget {
   const TeacherHomePage({super.key, required this.onSwitch});
 
   @override
-  State<TeacherHomePage> createState() => _TeacherHomePageState();
+  TeacherHomePageState createState() => TeacherHomePageState();
 }
 
-class _TeacherHomePageState extends State<TeacherHomePage> {
+class TeacherHomePageState extends State<TeacherHomePage> {
   List<ClassModel> _classes = [];
   bool _isLoading = true;
   int? _teacherId;
@@ -39,6 +38,12 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
   @override
   void dispose() {
     super.dispose();
+  }
+
+  /// Public method to refresh data when network reconnects
+  void refreshData() {
+    debugPrint('🔄 [TeacherHome] Refreshing data due to network reconnection');
+    _loadTeacherData();
   }
 
   Future<void> _loadTeacherData() async {
@@ -195,12 +200,16 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth < 600;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        toolbarHeight: 80,
+        toolbarHeight: isMediumScreen ? 70 : 80,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -209,11 +218,15 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                 padding: EdgeInsets.only(
                   top: MediaQuery.of(context).padding.top,
                 ),
-                child: const Text(
+                child: Text(
                   "Teacher Home",
                   style: TextStyle(
                     color: Colors.black87,
-                    fontSize: 28.0,
+                    fontSize: isSmallScreen
+                        ? 20.0
+                        : isMediumScreen
+                        ? 24.0
+                        : 28.0,
                     fontWeight: FontWeight.bold,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -221,7 +234,10 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
               ),
             ),
             Padding(
-              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top,
+                left: 8,
+              ),
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.green[50],
@@ -230,22 +246,24 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.all(8.0),
+                    Padding(
+                      padding: EdgeInsets.all(isSmallScreen ? 6.0 : 8.0),
                       child: Icon(
                         Icons.co_present,
                         color: Colors.green,
-                        size: 32,
+                        size: isSmallScreen ? 24 : 32,
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.change_circle,
                         color: Colors.green,
-                        size: 32,
+                        size: isSmallScreen ? 24 : 32,
                       ),
                       onPressed: widget.onSwitch,
                       tooltip: 'Switch to Learner Mode',
+                      padding: EdgeInsets.all(isSmallScreen ? 4 : 8),
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
@@ -365,7 +383,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -376,7 +394,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 32),

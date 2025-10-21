@@ -10,6 +10,7 @@ import 'package:tutorium_frontend/util/image_cache_manager.dart';
 import 'package:tutorium_frontend/services/notification_scheduler_service.dart';
 
 import '../learn/learn.dart';
+import '../learn/class_detail_page.dart';
 import '../widgets/schedule_card_learner.dart';
 import '../widgets/skeleton_loading.dart';
 
@@ -19,10 +20,10 @@ class LearnerHomePage extends StatefulWidget {
   const LearnerHomePage({super.key, required this.onSwitch});
 
   @override
-  State<LearnerHomePage> createState() => _LearnerHomePageState();
+  LearnerHomePageState createState() => LearnerHomePageState();
 }
 
-class _LearnerHomePageState extends State<LearnerHomePage> {
+class LearnerHomePageState extends State<LearnerHomePage> {
   final List<_LearnerScheduleItem> _schedule = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -61,6 +62,12 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
         _log('🔄 Background refresh updated ${items.length} items');
       }
     });
+  }
+
+  /// Public method to refresh data when network reconnects
+  void refreshData() {
+    _log('🔄 Refreshing data due to network reconnection');
+    _loadSchedule(isRefresh: true);
   }
 
   Future<void> _handleSwitchToTeacher() async {
@@ -501,7 +508,7 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
     }
   }
 
-  void _openClass(_LearnerScheduleItem item) {
+  Future<void> _openClass(_LearnerScheduleItem item) async {
     _log(
       'Opening class session ${item.classSessionId}. Meeting URL empty=${item.meetingUrl.isEmpty}.',
     );
@@ -514,95 +521,135 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => LearnPage(
-          classSessionId: item.classSessionId,
-          className: item.className,
-          teacherName: item.teacherName,
-          jitsiMeetingUrl: item.meetingUrl,
-          isTeacher: false,
+    // Check if user has viewed class details before
+    final hasViewed = await ClassDetailPage.hasViewed(item.classSessionId);
+
+    if (!mounted) return;
+
+    if (hasViewed) {
+      // Go directly to LearnPage if already viewed
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LearnPage(
+            classSessionId: item.classSessionId,
+            className: item.className,
+            teacherName: item.teacherName,
+            jitsiMeetingUrl: item.meetingUrl,
+            isTeacher: false,
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      // Show ClassDetailPage first
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ClassDetailPage(
+            classSessionId: item.classSessionId,
+            className: item.className,
+            teacherName: item.teacherName,
+            jitsiMeetingUrl: item.meetingUrl,
+            isTeacher: false,
+          ),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth < 600;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        toolbarHeight: 80,
+        toolbarHeight: isMediumScreen ? 70 : 80,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Padding(
-              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Learner Home",
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: 28.0,
-                      fontWeight: FontWeight.bold,
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Learner Home",
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: isSmallScreen
+                            ? 20.0
+                            : isMediumScreen
+                            ? 24.0
+                            : 28.0,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  Text(
-                    _schedule.isEmpty
-                        ? 'ไม่มีคลาสที่ลงทะเบียน'
-                        : '${_schedule.length} คลาส',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.normal,
+                    Text(
+                      _schedule.isEmpty
+                          ? 'ไม่มีคลาสที่ลงทะเบียน'
+                          : '${_schedule.length} คลาส',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: isSmallScreen ? 12.0 : 14.0,
+                        fontWeight: FontWeight.normal,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             Padding(
-              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top,
+                left: 8,
+              ),
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.amber[50],
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.all(8.0),
+                    Padding(
+                      padding: EdgeInsets.all(isSmallScreen ? 6.0 : 8.0),
                       child: Icon(
                         Icons.school_rounded,
                         color: Colors.amber,
-                        size: 32,
+                        size: isSmallScreen ? 24 : 32,
                       ),
                     ),
                     IconButton(
                       icon: _isCheckingTeacherStatus
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
+                          ? SizedBox(
+                              width: isSmallScreen ? 20 : 24,
+                              height: isSmallScreen ? 20 : 24,
+                              child: const CircularProgressIndicator(
                                 strokeWidth: 3,
                                 valueColor: AlwaysStoppedAnimation<Color>(
                                   Colors.amber,
                                 ),
                               ),
                             )
-                          : const Icon(
+                          : Icon(
                               Icons.change_circle,
                               color: Colors.amber,
-                              size: 32,
+                              size: isSmallScreen ? 24 : 32,
                             ),
                       onPressed: _isCheckingTeacherStatus
                           ? null
                           : _handleSwitchToTeacher,
                       tooltip: 'Switch to Teacher Mode',
+                      padding: EdgeInsets.all(isSmallScreen ? 4 : 8),
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
@@ -709,7 +756,7 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 8,
           ),
@@ -759,7 +806,7 @@ class _LearnerHomePageState extends State<LearnerHomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 8,
           ),

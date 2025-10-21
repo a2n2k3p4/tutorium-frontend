@@ -25,16 +25,21 @@ class _MainNavPageState extends State<MainNavPage> {
   late final Widget _notificationPage;
   late final Widget _profilePage;
 
+  final GlobalKey<LearnerHomePageState> _learnerHomeKey =
+      GlobalKey<LearnerHomePageState>();
+  final GlobalKey<TeacherHomePageState> _teacherHomeKey =
+      GlobalKey<TeacherHomePageState>();
+
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
     _learnerHomePage = LearnerHomePage(
-      key: const PageStorageKey('learner_home'),
+      key: _learnerHomeKey,
       onSwitch: toggleRole,
     );
     _teacherHomePage = TeacherHomePage(
-      key: const PageStorageKey('teacher_home'),
+      key: _teacherHomeKey,
       onSwitch: toggleRole,
     );
     _searchPage = const SearchPage(key: PageStorageKey('search_page'));
@@ -54,6 +59,13 @@ class _MainNavPageState extends State<MainNavPage> {
     setState(() {
       isLearner = !isLearner;
     });
+  }
+
+  void _refreshAllPages() {
+    // Refresh learner home page
+    _learnerHomeKey.currentState?.refreshData();
+    // Refresh teacher home page
+    _teacherHomeKey.currentState?.refreshData();
   }
 
   void _handleBottomNavTap(int index) {
@@ -120,6 +132,7 @@ class _MainNavPageState extends State<MainNavPage> {
     ];
 
     return ConnectivityWrapper(
+      onReconnect: _refreshAllPages,
       child: Scaffold(
         body: PageView(
           controller: _pageController,
@@ -130,21 +143,35 @@ class _MainNavPageState extends State<MainNavPage> {
           onPageChanged: _handlePageChanged,
           children: pages,
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: _handleBottomNavTap,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.green,
-          unselectedItemColor: Colors.grey,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-            BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.notifications),
-              label: "Notification",
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-          ],
+        bottomNavigationBar: LayoutBuilder(
+          builder: (context, constraints) {
+            final isSmallScreen = constraints.maxWidth < 360;
+            return BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: _handleBottomNavTap,
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: Colors.green,
+              unselectedItemColor: Colors.grey,
+              selectedFontSize: isSmallScreen ? 11 : 14,
+              unselectedFontSize: isSmallScreen ? 10 : 12,
+              iconSize: isSmallScreen ? 22 : 24,
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.search),
+                  label: "Search",
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.notifications),
+                  label: "Notification",
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: "Profile",
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

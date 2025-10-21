@@ -113,25 +113,15 @@ class _AuthCheckerState extends State<AuthChecker> {
       // Try to get user from cache (this will also check local storage)
       final cachedUser = await UserCache().getUser(userId, forceRefresh: false);
 
-      if (cachedUser != null) {
-        debugPrint(
-          'DEBUG AuthChecker: User restored successfully - ${cachedUser.firstName} ${cachedUser.lastName}',
-        );
+      debugPrint(
+        'DEBUG AuthChecker: User restored successfully - ${cachedUser.firstName} ${cachedUser.lastName}',
+      );
 
-        // อัพเดท cache ด้วยข้อมูลที่ได้
-        UserCache().saveUser(cachedUser);
+      // อัพเดท cache ด้วยข้อมูลที่ได้
+      UserCache().saveUser(cachedUser);
 
-        // ไปหน้าหลัก
-        _navigateToHome();
-      } else {
-        // ถ้า restore ไม่ได้ -> ลบข้อมูลเก่าและไปหน้า Login
-        debugPrint(
-          'DEBUG AuthChecker: Failed to restore user -> clear and go to Login',
-        );
-        await LocalStorage.clear();
-        UserCache().clear();
-        _navigateToLogin();
-      }
+      // ไปหน้าหลัก
+      _navigateToHome();
     } catch (e) {
       debugPrint('ERROR AuthChecker: Error during auth check - $e');
       // ถ้าเกิด error -> ลบข้อมูลและไปหน้า Login
