@@ -454,7 +454,7 @@ class LearnerHomePageState extends State<LearnerHomePage> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('ยกเลิก'),
+            child: const Text('ยืนยันการยกเลิก'),
           ),
         ],
       ),
@@ -477,8 +477,13 @@ class LearnerHomePageState extends State<LearnerHomePage> {
             e.enrollmentStatus.toLowerCase() == 'active',
       );
 
+      // ตรวจสอบว่า enrollment มี id หรือไม่
+      if (enrollment.id == null) {
+        throw Exception('Enrollment ID not found');
+      }
+
       // ลบ enrollment
-      await enrollment_api.Enrollment.delete(enrollment.classSessionId);
+      await enrollment_api.Enrollment.delete(enrollment.id!);
 
       // Cancel scheduled notifications for this class
       await NotificationSchedulerService().cancelForSession(

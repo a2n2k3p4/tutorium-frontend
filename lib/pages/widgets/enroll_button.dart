@@ -5,6 +5,8 @@ import 'package:tutorium_frontend/util/schedule_validator.dart';
 import 'package:tutorium_frontend/pages/widgets/schedule_conflict_dialog.dart';
 import 'package:tutorium_frontend/services/local_notification_service.dart';
 import 'package:tutorium_frontend/service/classes.dart';
+import 'package:tutorium_frontend/service/users.dart';
+import 'package:tutorium_frontend/util/local_storage.dart';
 
 /// ปุ่ม Enroll พร้อมตรวจสอบเวลาทับกัน
 class EnrollButton extends StatefulWidget {
@@ -26,12 +28,41 @@ class EnrollButton extends StatefulWidget {
 class _EnrollButtonState extends State<EnrollButton> {
   bool _isLoading = false;
 
+  Future<int> _getCurrentUserId() async {
+    final userId = await LocalStorage.getUserId();
+    if (userId == null) {
+      throw Exception('Unable to get current user ID');
+    }
+    return userId;
+  }
+
   Future<void> _handleEnroll() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
+      // 0. ตรวจสอบว่าผู้ใช้เป็น teacher ของคลาสนี้หรือไม่
+      final session = await ClassSession.fetchById(widget.sessionId);
+      final classInfo = await ClassInfo.fetchById(session.classId);
+
+      // ดึงข้อมูล current user เพื่อเช็ค teacher ID
+      final currentUser = await User.fetchById(await _getCurrentUserId());
+      if (currentUser.teacher != null && currentUser.teacher!.id == classInfo.teacherId) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ครูไม่สามารถลงทะเบียนคลาสของตัวเองได้'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
       // 1. ตรวจสอบว่าลงทะเบียนซ้ำหรือไม่
       final existingEnrollments = await Enrollment.fetchAll(
         query: {
@@ -56,7 +87,6 @@ class _EnrollButtonState extends State<EnrollButton> {
       }
 
       // 2. ตรวจสอบว่าคลาสเต็มหรือไม่ (จำกัดไม่เกิน 20 คน)
-      final session = await ClassSession.fetchById(widget.sessionId);
       final enrollments = await Enrollment.fetchAll(
         query: {'class_session_id': widget.sessionId},
       );

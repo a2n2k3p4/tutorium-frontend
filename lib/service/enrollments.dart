@@ -1,11 +1,13 @@
 import 'package:tutorium_frontend/service/api_client.dart';
 
 class Enrollment {
+  final int? id;
   final int classSessionId;
   final String enrollmentStatus;
   final int learnerId;
 
   Enrollment({
+    this.id,
     required this.classSessionId,
     required this.enrollmentStatus,
     required this.learnerId,
@@ -13,6 +15,7 @@ class Enrollment {
 
   factory Enrollment.fromJson(Map<String, dynamic> json) {
     return Enrollment(
+      id: json['ID'] ?? json['id'],
       classSessionId: json['class_session_id'],
       enrollmentStatus: json['enrollment_status'] ?? '',
       learnerId: json['learner_id'],

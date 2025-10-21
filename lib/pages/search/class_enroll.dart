@@ -765,6 +765,29 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     final session = selectedSession!;
     final currentUser = userInfo;
 
+    // ตรวจสอบว่าผู้ใช้เป็น teacher ของคลาสนี้หรือไม่
+    if (currentUser != null && classInfo != null) {
+      try {
+        final userId = await LocalStorage.getUserId();
+        if (userId != null) {
+          final fullUser = await user_api.User.fetchById(userId);
+          if (fullUser.teacher != null && fullUser.teacher!.id == classInfo!.teacherId) {
+            if (mounted) {
+              ScaffoldMessenger.of(parentContext).showSnackBar(
+                const SnackBar(
+                  content: Text('ครูไม่สามารถลงทะเบียนคลาสของตัวเองได้'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Failed to check teacher status: $e');
+      }
+    }
+
     if (currentUser == null) {
       if (mounted) {
         ScaffoldMessenger.of(parentContext).showSnackBar(
