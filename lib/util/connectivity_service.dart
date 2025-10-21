@@ -81,7 +81,7 @@ class NoInternetBanner extends StatelessWidget {
         color: Colors.red[700],
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -111,8 +111,9 @@ class NoInternetBanner extends StatelessWidget {
 /// ConnectivityWrapper - Wrapper widget ที่แสดงแบนเนอร์เมื่อไม่มีเน็ต
 class ConnectivityWrapper extends StatefulWidget {
   final Widget child;
+  final VoidCallback? onReconnect;
 
-  const ConnectivityWrapper({super.key, required this.child});
+  const ConnectivityWrapper({super.key, required this.child, this.onReconnect});
 
   @override
   State<ConnectivityWrapper> createState() => _ConnectivityWrapperState();
@@ -139,19 +140,25 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     // ฟังการเปลี่ยนแปลงสถานะ
     _connectivityService.connectionStatus.listen((isConnected) {
       if (mounted) {
+        final wasDisconnected = !_isConnected;
         setState(() {
           _isConnected = isConnected;
         });
 
-        // แสดง SnackBar เมื่อสถานะเปลี่ยน
-        if (isConnected) {
+        // แสดง SnackBar เมื่อสถานะเปลี่ยน และเรียก refresh callback
+        if (isConnected && wasDisconnected) {
+          // เรียก refresh callback เมื่อเน็ตกลับมา
+          widget.onReconnect?.call();
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
                 children: [
                   Icon(Icons.wifi, color: Colors.white),
                   const SizedBox(width: 12),
-                  const Text('กลับมาเชื่อมต่ออินเทอร์เน็ตแล้ว'),
+                  const Text(
+                    'กลับมาเชื่อมต่ออินเทอร์เน็ตแล้ว กำลังโหลดข้อมูลใหม่...',
+                  ),
                 ],
               ),
               backgroundColor: Colors.green[700],

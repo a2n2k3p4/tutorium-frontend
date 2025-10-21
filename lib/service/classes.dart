@@ -224,7 +224,20 @@ class ClassInfo {
 
   /// DELETE /classes/:id (200, 400, 404, 500)
   static Future<void> delete(int id) async {
-    await _client.delete('/classes/$id');
+    try {
+      await _client.delete('/classes/$id');
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        throw ApiException(404, 'Class not found');
+      } else if (e.statusCode == 400) {
+        throw ApiException(400, e.body ?? 'Invalid class ID');
+      } else if (e.statusCode == 500) {
+        throw ApiException(500, 'Failed to delete class. Please try again.');
+      }
+      rethrow;
+    } catch (e) {
+      throw Exception('Failed to delete class: ${e.toString()}');
+    }
   }
 
   static Future<double?> fetchAverageRating(int classId) async {

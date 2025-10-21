@@ -69,7 +69,7 @@ class ClassCacheManager {
 
   static const String _cacheKeyPrefix = 'class_cache_';
   static const String _teacherClassesPrefix = 'teacher_classes_';
-  static const Duration _cacheDuration = Duration(days: 30);
+  static const Duration _cacheDuration = Duration(minutes: 5);
 
   // In-memory cache for faster access
   final Map<int, CachedClassData> _memoryCache = {};

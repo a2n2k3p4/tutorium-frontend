@@ -135,6 +135,19 @@ class ClassSession {
 
   /// DELETE /class_sessions/:id (200, 400, 404, 500)
   static Future<void> delete(int id) async {
-    await _client.delete('/class_sessions/$id');
+    try {
+      await _client.delete('/class_sessions/$id');
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        throw ApiException(404, 'Session not found');
+      } else if (e.statusCode == 400) {
+        throw ApiException(400, e.body ?? 'Invalid session ID');
+      } else if (e.statusCode == 500) {
+        throw ApiException(500, 'Failed to delete session. Please try again.');
+      }
+      rethrow;
+    } catch (e) {
+      throw Exception('Failed to delete session: ${e.toString()}');
+    }
   }
 }
