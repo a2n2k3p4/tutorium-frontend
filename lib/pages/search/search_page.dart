@@ -669,6 +669,43 @@ class _SearchPageState extends State<SearchPage> {
     return hasError ? RatingValidation(minError, maxError, true) : null;
   }
 
+  Future<void> _handleRefresh() async {
+    debugPrint('🔄 Pull to refresh triggered');
+
+    // Clear in-memory cache to force fresh data
+    _dataStore.clearCache();
+
+    // Force refresh popular classes
+    await _loadPopularClasses(forceRefresh: true);
+
+    // Force refresh recommended sessions
+    await _loadRecommendedSessions();
+
+    // If there's a current search/filter, re-run it
+    if (currentQuery.isNotEmpty || isFilterActive) {
+      await _search(currentQuery);
+    } else {
+      // Reload all classes
+      try {
+        final data = await api.filterClasses();
+        setState(() => _allClasses = data);
+      } catch (e) {
+        debugPrint('Error refreshing all classes: $e');
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Refreshed successfully'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+
+    debugPrint('✅ Refresh completed');
+  }
+
   @override
   Widget build(BuildContext context) {
     return SearchDataProvider(
@@ -680,305 +717,311 @@ class _SearchPageState extends State<SearchPage> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: "Enter class name..",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: _onSearchChanged,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isFilterActive
-                          ? Theme.of(context).colorScheme.secondary
-                          : Theme.of(context).primaryColor,
-                    ),
-                    child: IconButton(
-                      icon: Icon(Icons.filter_list, color: Colors.white),
-                      onPressed: _showFilterOptions,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            if (isFilterActive)
+        body: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 8,
+                padding: const EdgeInsets.all(8),
+                child: Row(
                   children: [
-                    if (_categoryFilters.isNotEmpty)
-                      Chip(
-                        label: Text(
-                          "Categories: ${selectedCategories.join(',')}",
+                    Expanded(
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: "Enter class name..",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          prefixIcon: Icon(Icons.search),
                         ),
-                        onDeleted: () {
-                          setState(() {
-                            selectedCategories.clear();
-                            _refreshFilterActiveState();
-                          });
-                          _search(currentQuery);
-                        },
+                        onChanged: _onSearchChanged,
                       ),
-                    if (minRating != null)
-                      Chip(
-                        label: Text("Rating ≥ $minRating"),
-                        onDeleted: () {
-                          setState(() {
-                            _setMinRating(null);
-                          });
-                          _search(currentQuery);
-                        },
+                    ),
+                    SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isFilterActive
+                            ? Theme.of(context).colorScheme.secondary
+                            : Theme.of(context).primaryColor,
                       ),
-                    if (maxRating != null)
-                      Chip(
-                        label: Text("Rating ≤ $maxRating"),
-                        onDeleted: () {
-                          setState(() {
-                            _setMaxRating(null);
-                          });
-                          _search(currentQuery);
-                        },
+                      child: IconButton(
+                        icon: Icon(Icons.filter_list, color: Colors.white),
+                        onPressed: _showFilterOptions,
                       ),
+                    ),
                   ],
                 ),
               ),
 
-            Expanded(
-              child: ListView(
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  if (isLoading)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: GridLoadingSkeleton(itemCount: 6),
-                    )
-                  else if (currentQuery.isNotEmpty || isFilterActive)
-                    _filteredClasses.isNotEmpty
-                        ? GridView.builder(
-                            shrinkWrap: true,
-                            physics: NeverScrollableScrollPhysics(),
-                            padding: const EdgeInsets.all(8),
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 8,
-                                  mainAxisSpacing: 8,
-                                  childAspectRatio: 0.8,
-                                ),
-                            itemCount: _filteredClasses.length,
-                            itemBuilder: (context, index) {
-                              final item = _filteredClasses[index];
-                              return ScheduleCard_search(
-                                classId: item['id'] ?? item['classId'] ?? 0,
-                                className:
-                                    item['class_name'] ??
-                                    item['className'] ??
-                                    'Unnamed Class',
-                                teacherName:
-                                    item['teacher_name'] ??
-                                    item['teacherName'] ??
-                                    'Unknown Teacher',
-                                date: DateTime.now(),
-                                startTime: TimeOfDay(hour: 0, minute: 0),
-                                endTime: TimeOfDay(hour: 0, minute: 0),
-                                imageUrl:
-                                    (item['banner_picture_url'] ??
-                                            item['banner_picture'] ??
-                                            item['imagePath'])
-                                        ?.toString(),
-                                fallbackAsset: 'assets/images/guitar.jpg',
-                                showSchedule: false,
-                                rating: (item['rating'] is num)
-                                    ? (item['rating'] as num).toDouble()
-                                    : 0.0,
-                              );
-                            },
-                          )
-                        : const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Text("No results found"),
-                          )
-                  else
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
+              if (isFilterActive)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      if (_categoryFilters.isNotEmpty)
+                        Chip(
+                          label: Text(
+                            "Categories: ${selectedCategories.join(',')}",
                           ),
-                          child: Text(
-                            "Recommended Class",
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                          onDeleted: () {
+                            setState(() {
+                              selectedCategories.clear();
+                              _refreshFilterActiveState();
+                            });
+                            _search(currentQuery);
+                          },
+                        ),
+                      if (minRating != null)
+                        Chip(
+                          label: Text("Rating ≥ $minRating"),
+                          onDeleted: () {
+                            setState(() {
+                              _setMinRating(null);
+                            });
+                            _search(currentQuery);
+                          },
+                        ),
+                      if (maxRating != null)
+                        Chip(
+                          label: Text("Rating ≤ $maxRating"),
+                          onDeleted: () {
+                            setState(() {
+                              _setMaxRating(null);
+                            });
+                            _search(currentQuery);
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+
+              Expanded(
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    if (isLoading)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: GridLoadingSkeleton(itemCount: 6),
+                      )
+                    else if (currentQuery.isNotEmpty || isFilterActive)
+                      _filteredClasses.isNotEmpty
+                          ? GridView.builder(
+                              shrinkWrap: true,
+                              physics: NeverScrollableScrollPhysics(),
+                              padding: const EdgeInsets.all(8),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 8,
+                                    mainAxisSpacing: 8,
+                                    childAspectRatio: 0.8,
+                                  ),
+                              itemCount: _filteredClasses.length,
+                              itemBuilder: (context, index) {
+                                final item = _filteredClasses[index];
+                                return ScheduleCardSearch(
+                                  classId: item['id'] ?? item['classId'] ?? 0,
+                                  className:
+                                      item['class_name'] ??
+                                      item['className'] ??
+                                      'Unnamed Class',
+                                  teacherName:
+                                      item['teacher_name'] ??
+                                      item['teacherName'] ??
+                                      'Unknown Teacher',
+                                  date: DateTime.now(),
+                                  startTime: TimeOfDay(hour: 0, minute: 0),
+                                  endTime: TimeOfDay(hour: 0, minute: 0),
+                                  imageUrl:
+                                      (item['banner_picture_url'] ??
+                                              item['banner_picture'] ??
+                                              item['imagePath'])
+                                          ?.toString(),
+                                  fallbackAsset: 'assets/images/guitar.jpg',
+                                  showSchedule: false,
+                                  rating: (item['rating'] is num)
+                                      ? (item['rating'] as num).toDouble()
+                                      : 0.0,
+                                );
+                              },
+                            )
+                          : const Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Text("No results found"),
+                            )
+                    else
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Text(
+                              "Recommended Class",
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
-                        SizedBox(
-                          height: 180,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: _isLoadingRecommended
-                                ? const HorizontalLoadingSkeleton(itemCount: 5)
-                                : _recommendedClasses.isEmpty
-                                ? const Center(
-                                    key: ValueKey('no_recommended'),
-                                    child: Text(
-                                      'No recommended sessions found',
+                          SizedBox(
+                            height: 180,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              child: _isLoadingRecommended
+                                  ? const HorizontalLoadingSkeleton(
+                                      itemCount: 5,
+                                    )
+                                  : _recommendedClasses.isEmpty
+                                  ? const Center(
+                                      key: ValueKey('no_recommended'),
+                                      child: Text(
+                                        'No recommended sessions found',
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      key: const ValueKey('recommended_list'),
+                                      scrollDirection: Axis.horizontal,
+                                      physics: const BouncingScrollPhysics(),
+                                      itemCount: _recommendedClasses.length,
+                                      itemBuilder: (context, index) {
+                                        final item = _recommendedClasses[index];
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 12,
+                                          ),
+                                          child: ScheduleCardSearch(
+                                            classId: item.classId,
+                                            className: item.className,
+                                            enrolledLearner:
+                                                item.enrolledLearner,
+                                            learnerLimit: item.learnerLimit,
+                                            teacherName: item.teacherName,
+                                            date: item.date,
+                                            startTime: item.startTime,
+                                            endTime: item.endTime,
+                                            imageUrl: item.imageUrl,
+                                            fallbackAsset:
+                                                'assets/images/default.jpg',
+                                            rating: item.rating,
+                                          ),
+                                        );
+                                      },
                                     ),
-                                  )
-                                : ListView.builder(
-                                    key: const ValueKey('recommended_list'),
-                                    scrollDirection: Axis.horizontal,
-                                    physics: const BouncingScrollPhysics(),
-                                    itemCount: _recommendedClasses.length,
-                                    itemBuilder: (context, index) {
-                                      final item = _recommendedClasses[index];
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 12,
-                                        ),
-                                        child: ScheduleCard_search(
-                                          classId: item.classId,
-                                          className: item.className,
-                                          enrolledLearner: item.enrolledLearner,
-                                          learnerLimit: item.learnerLimit,
-                                          teacherName: item.teacherName,
-                                          date: item.date,
-                                          startTime: item.startTime,
-                                          endTime: item.endTime,
-                                          imageUrl: item.imageUrl,
-                                          fallbackAsset:
-                                              'assets/images/default.jpg',
-                                          rating: item.rating,
-                                        ),
-                                      );
-                                    },
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Popular Classes",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                "Popular Classes",
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
                                 ),
-                              ),
-                              if ((_popularTopCache?.length ??
-                                          _popularClasses.length) >
-                                      10 ||
-                                  _popularAllCache != null)
-                                TextButton(
-                                  onPressed: _isLoadingPopularToggle
-                                      ? null
-                                      : _togglePopularView,
-                                  child: _isLoadingPopularToggle
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
+                                if ((_popularTopCache?.length ??
+                                            _popularClasses.length) >
+                                        10 ||
+                                    _popularAllCache != null)
+                                  TextButton(
+                                    onPressed: _isLoadingPopularToggle
+                                        ? null
+                                        : _togglePopularView,
+                                    child: _isLoadingPopularToggle
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : Text(
+                                            showAllPopular
+                                                ? "See less"
+                                                : "See more",
                                           ),
-                                        )
-                                      : Text(
-                                          showAllPopular
-                                              ? "See less"
-                                              : "See more",
-                                        ),
-                                ),
-                            ],
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
 
-                        SizedBox(
-                          height: 180,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: _popularClasses.isEmpty
-                                ? const Center(
-                                    key: ValueKey('no_popular'),
-                                    child: Text("No popular classes found"),
-                                  )
-                                : ListView.builder(
-                                    key: const ValueKey('popular_list'),
-                                    scrollDirection: Axis.horizontal,
-                                    physics: const BouncingScrollPhysics(),
-                                    itemCount: _popularClasses.length,
-                                    itemBuilder: (context, index) {
-                                      final item = _popularClasses[index];
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 12,
-                                        ),
-                                        child: ScheduleCard_search(
-                                          classId:
-                                              item['id'] ??
-                                              item['classId'] ??
-                                              0,
-                                          className:
-                                              item['class_name'] ??
-                                              'Unnamed Class',
-                                          teacherName:
-                                              item['teacher_name'] ??
-                                              'Unknown Teacher',
-                                          date: DateTime.now(),
-                                          startTime: TimeOfDay(
-                                            hour: 0,
-                                            minute: 0,
+                          SizedBox(
+                            height: 180,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              child: _popularClasses.isEmpty
+                                  ? const Center(
+                                      key: ValueKey('no_popular'),
+                                      child: Text("No popular classes found"),
+                                    )
+                                  : ListView.builder(
+                                      key: const ValueKey('popular_list'),
+                                      scrollDirection: Axis.horizontal,
+                                      physics: const BouncingScrollPhysics(),
+                                      itemCount: _popularClasses.length,
+                                      itemBuilder: (context, index) {
+                                        final item = _popularClasses[index];
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 12,
                                           ),
-                                          endTime: TimeOfDay(
-                                            hour: 0,
-                                            minute: 0,
+                                          child: ScheduleCardSearch(
+                                            classId:
+                                                item['id'] ??
+                                                item['classId'] ??
+                                                0,
+                                            className:
+                                                item['class_name'] ??
+                                                'Unnamed Class',
+                                            teacherName:
+                                                item['teacher_name'] ??
+                                                'Unknown Teacher',
+                                            date: DateTime.now(),
+                                            startTime: TimeOfDay(
+                                              hour: 0,
+                                              minute: 0,
+                                            ),
+                                            endTime: TimeOfDay(
+                                              hour: 0,
+                                              minute: 0,
+                                            ),
+                                            imageUrl:
+                                                (item['banner_picture_url'] ??
+                                                        item['banner_picture'] ??
+                                                        item['imagePath'])
+                                                    ?.toString(),
+                                            fallbackAsset:
+                                                'assets/images/guitar.jpg',
+                                            showSchedule: false,
+                                            rating: (item['rating'] is num)
+                                                ? (item['rating'] as num)
+                                                      .toDouble()
+                                                : 0.0,
                                           ),
-                                          imageUrl:
-                                              (item['banner_picture_url'] ??
-                                                      item['banner_picture'] ??
-                                                      item['imagePath'])
-                                                  ?.toString(),
-                                          fallbackAsset:
-                                              'assets/images/guitar.jpg',
-                                          showSchedule: false,
-                                          rating: (item['rating'] is num)
-                                              ? (item['rating'] as num)
-                                                    .toDouble()
-                                              : 0.0,
-                                        ),
-                                      );
-                                    },
-                                  ),
+                                        );
+                                      },
+                                    ),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                ],
+                        ],
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1022,6 +1065,13 @@ class SearchDataStore extends ChangeNotifier {
   bool _shouldSkipUpdate(List<dynamic>? existing, List<dynamic> incoming) {
     if (existing == null) return false;
     return listEquals(existing, incoming);
+  }
+
+  void clearCache() {
+    _allClasses = null;
+    _popularTop = null;
+    _popularAll = null;
+    notifyListeners();
   }
 }
 

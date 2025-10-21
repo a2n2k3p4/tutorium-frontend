@@ -64,9 +64,9 @@ class _PaymentScreenState extends State<PaymentScreen>
   @override
   void initState() {
     super.initState();
-    backendUrl =
-        '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}' ??
-        'http://10.0.2.2:8080';
+    backendUrl = '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}' != ':'
+        ? '${dotenv.env["API_URL"]}:${dotenv.env["PORT"]}'
+        : 'http://10.0.2.2:8080';
 
     _animationController = AnimationController(
       vsync: this,
@@ -377,7 +377,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -577,7 +577,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF667eea).withOpacity(0.3),
+                        color: const Color(0xFF667eea).withValues(alpha: 0.3),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),
@@ -588,7 +588,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -610,7 +610,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                       Text(
                         'ชำระผ่าน PromptPay อย่างรวดเร็ว',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 14,
                         ),
                       ),
@@ -626,7 +626,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),

@@ -166,7 +166,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
       final fetchedClassInfo = results[1] as ClassInfo;
 
       final teacherFuture = _fetchTeacherDisplayName(
-        fetchedClassInfo.teacher_id,
+        fetchedClassInfo.teacherId,
       );
       final userFuture = service
           .fetchUser()
@@ -455,30 +455,79 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
   Widget _buildSessionDropdown() {
     if (sessions.isEmpty) return const Text("No sessions available");
 
-    return DropdownButton<class_models.ClassSession>(
-      isExpanded: true,
-      hint: const Text("Choose a session"),
-      value: selectedSession,
-      items: sessions.map((session) {
-        final dateStr = _formatDate(session.classStart);
-        final timeStr =
-            "${_formatTime(session.classStart)} – ${_formatTime(session.classFinish)}";
-        final deadlineStr = _formatDate(session.enrollmentDeadline);
+    return FutureBuilder<Map<int, int>>(
+      future: _fetchEnrollmentCounts(),
+      builder: (context, snapshot) {
+        final enrollmentCounts = snapshot.data ?? {};
 
-        return DropdownMenuItem(
-          value: session,
-          child: Text(
-            '${dateStr} • ${timeStr} • \$${session.price.toStringAsFixed(2)}  (Deadline: $deadlineStr)',
-            style: const TextStyle(fontSize: 14),
-          ),
+        return DropdownButton<class_models.ClassSession>(
+          isExpanded: true,
+          hint: const Text("Choose a session"),
+          value: selectedSession,
+          items: sessions.map((session) {
+            final dateStr = _formatDate(session.classStart);
+            final timeStr =
+                "${_formatTime(session.classStart)} – ${_formatTime(session.classFinish)}";
+            final deadlineStr = _formatDate(session.enrollmentDeadline);
+
+            final enrolledCount = enrollmentCounts[session.id] ?? 0;
+            final limit = session.learnerLimit > 20 ? 20 : session.learnerLimit;
+            final isFull = enrolledCount >= limit;
+            final statusText = isFull
+                ? ' 🔴 เต็มแล้ว!'
+                : ' ($enrolledCount/$limit คน)';
+
+            return DropdownMenuItem(
+              value: session,
+              enabled: !isFull,
+              child: Text(
+                '${dateStr} • ${timeStr} • \$${session.price.toStringAsFixed(2)}$statusText',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isFull ? Colors.red : Colors.black,
+                  fontWeight: isFull ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              selectedSession = value;
+            });
+          },
         );
-      }).toList(),
-      onChanged: (value) {
-        setState(() {
-          selectedSession = value;
-        });
       },
     );
+  }
+
+  Future<Map<int, int>> _fetchEnrollmentCounts() async {
+    final Map<int, int> counts = {};
+
+    try {
+      // Fetch all enrollments once
+      final allEnrollments = await enrollment_api.Enrollment.fetchAll();
+
+      // Group by session ID and count
+      for (final session in sessions) {
+        final activeCount = allEnrollments
+            .where(
+              (e) =>
+                  e.classSessionId == session.id &&
+                  e.enrollmentStatus == 'active',
+            )
+            .length;
+        counts[session.id] = activeCount;
+        debugPrint('📊 Session ${session.id}: $activeCount enrollments');
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching enrollment counts: $e');
+      // Set all to 0 on error
+      for (final session in sessions) {
+        counts[session.id] = 0;
+      }
+    }
+
+    return counts;
   }
 
   Widget _buildReviewsSection() {
@@ -742,16 +791,48 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
 
     try {
       // ตรวจสอบว่าลงทะเบียนซ้ำหรือไม่ก่อนหักเงิน
-      final existingEnrollments = await enrollment_api.Enrollment.fetchAll();
-      final isDuplicate = existingEnrollments.any(
-        (e) => e.learnerId == learnerId && e.classSessionId == session.id,
+      final existingEnrollments = await enrollment_api.Enrollment.fetchAll(
+        query: {'learner_id': learnerId, 'class_session_id': session.id},
       );
 
-      if (isDuplicate) {
+      if (existingEnrollments.isNotEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(parentContext).showSnackBar(
             const SnackBar(
               content: Text('You are already enrolled in this session.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      // ตรวจสอบว่าคลาสเต็มหรือไม่ก่อนหักเงิน (max 20 คน)
+      final allEnrollments = await enrollment_api.Enrollment.fetchAll();
+      final currentEnrollmentCount = allEnrollments
+          .where(
+            (e) =>
+                e.classSessionId == session.id &&
+                e.enrollmentStatus == 'active',
+          )
+          .length;
+
+      const maxParticipants = 20;
+      final effectiveLimit = session.learnerLimit > maxParticipants
+          ? maxParticipants
+          : session.learnerLimit;
+
+      debugPrint(
+        '📊 Enrollment check: $currentEnrollmentCount/$effectiveLimit for session ${session.id}',
+      );
+
+      if (currentEnrollmentCount >= effectiveLimit) {
+        if (mounted) {
+          ScaffoldMessenger.of(parentContext).showSnackBar(
+            SnackBar(
+              content: Text(
+                'ขอโทษ คลาสนี้เต็มแล้ว (รับได้สูงสุด $effectiveLimit คน)',
+              ),
+              backgroundColor: Colors.red,
             ),
           );
         }
@@ -1119,8 +1200,8 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                                 ElevatedButton(
                                   onPressed: () {
                                     if (classInfo != null &&
-                                        classInfo!.teacher_id != 0) {
-                                      final teacherId = classInfo!.teacher_id;
+                                        classInfo!.teacherId != 0) {
+                                      final teacherId = classInfo!.teacherId;
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:tutorium_frontend/models/models.dart';
 import 'package:tutorium_frontend/pages/home/teacher/create_session_page.dart';
 import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
-import 'package:tutorium_frontend/service/classes.dart' as class_api;
 import 'package:tutorium_frontend/util/class_cache_manager.dart';
 
 class MyClassesPage extends StatefulWidget {
@@ -455,7 +454,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -626,9 +625,9 @@ class _MyClassesPageState extends State<MyClassesPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -652,7 +651,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -675,7 +674,6 @@ class _MyClassesPageState extends State<MyClassesPage> {
 
   List<Widget> _buildEnrolledStudents(List<Map<String, dynamic>> enrollments) {
     return enrollments.map((enrollment) {
-      final learner = enrollment['learner'];
       final user = enrollment['user'];
 
       return Container(

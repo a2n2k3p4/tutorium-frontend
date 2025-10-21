@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorium_frontend/pages/learn/mandatory_review_page.dart';
+import 'package:tutorium_frontend/pages/learn/class_participants_page.dart';
 import 'package:tutorium_frontend/service/class_sessions.dart'
     as class_sessions;
 import 'package:tutorium_frontend/service/class_readiness_service.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
+import 'package:tutorium_frontend/service/classes.dart' as classes;
 
 class _JitsiMeetingConfig {
   const _JitsiMeetingConfig({
@@ -681,6 +683,19 @@ class _LearnPageState extends State<LearnPage>
 
     _reviewShown = true;
 
+    // Get teacher info from class
+    int? teacherId;
+    String? teacherName = widget.teacherName;
+    try {
+      final classInfo = await classes.ClassInfo.fetchById(classId);
+      teacherId = classInfo.teacherId;
+      if (classInfo.teacherName != null && classInfo.teacherName!.isNotEmpty) {
+        teacherName = classInfo.teacherName;
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch class info for report: $e');
+    }
+
     var submitted = false;
     while (!submitted && mounted) {
       final result = await Navigator.of(context).push<bool>(
@@ -689,6 +704,9 @@ class _LearnPageState extends State<LearnPage>
             classId: classId,
             className: widget.className,
             learnerId: _learnerId!,
+            classSessionId: widget.classSessionId,
+            teacherId: teacherId,
+            teacherName: teacherName,
           ),
         ),
       );
@@ -1534,6 +1552,12 @@ class _LearnPageState extends State<LearnPage>
                 _buildJoinButtonSection(),
                 const SizedBox(height: 16),
 
+                // Report Button - Optional for teachers
+                if (widget.isTeacher) ...[
+                  _buildReportButton(),
+                  const SizedBox(height: 8),
+                ],
+
                 // Back Button - Subtle
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
@@ -2045,6 +2069,32 @@ class _LearnPageState extends State<LearnPage>
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildReportButton() {
+    return OutlinedButton.icon(
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ClassParticipantsPage(
+              classSessionId: widget.classSessionId,
+              className: widget.className,
+            ),
+          ),
+        );
+      },
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        foregroundColor: Colors.orange.shade700,
+        side: BorderSide(color: Colors.orange.shade300, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      icon: const Icon(Icons.flag_outlined, size: 20),
+      label: const Text(
+        'รายงานผู้เรียน (ไม่บังคับ)',
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
     );
   }
 

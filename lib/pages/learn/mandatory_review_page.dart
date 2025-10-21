@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:tutorium_frontend/service/reviews.dart' as reviews_service;
+import 'package:tutorium_frontend/pages/widgets/report_dialog.dart';
+import 'package:tutorium_frontend/util/local_storage.dart';
 
 class MandatoryReviewPage extends StatefulWidget {
   const MandatoryReviewPage({
@@ -9,11 +11,17 @@ class MandatoryReviewPage extends StatefulWidget {
     required this.classId,
     required this.className,
     required this.learnerId,
+    this.classSessionId,
+    this.teacherId,
+    this.teacherName,
   });
 
   final int classId;
   final String className;
   final int learnerId;
+  final int? classSessionId;
+  final int? teacherId;
+  final String? teacherName;
 
   @override
   State<MandatoryReviewPage> createState() => _MandatoryReviewPageState();
@@ -71,6 +79,11 @@ class _MandatoryReviewPageState extends State<MandatoryReviewPage> {
                       _buildErrorBanner(),
                     ],
                     const Spacer(),
+                    if (widget.classSessionId != null &&
+                        widget.teacherId != null) ...[
+                      _buildReportButton(theme),
+                      const SizedBox(height: 12),
+                    ],
                     _buildSubmitButton(theme),
                   ],
                 ),
@@ -291,6 +304,28 @@ class _MandatoryReviewPageState extends State<MandatoryReviewPage> {
     );
   }
 
+  Widget _buildReportButton(ThemeData theme) {
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: _submitting ? null : _showReportDialog,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          foregroundColor: Colors.red.shade600,
+          side: BorderSide(color: Colors.red.shade300, width: 2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        icon: const Icon(Icons.flag_outlined),
+        label: const Text(
+          'รายงานครู (ไม่บังคับ)',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSubmitButton(ThemeData theme) {
     return SizedBox(
       height: 58,
@@ -382,5 +417,41 @@ class _MandatoryReviewPageState extends State<MandatoryReviewPage> {
         _submitting = false;
       });
     }
+  }
+
+  Future<void> _showReportDialog() async {
+    if (widget.classSessionId == null || widget.teacherId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ไม่สามารถรายงานได้ ข้อมูลไม่ครบถ้วน'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final userId = await LocalStorage.getUserId();
+    if (userId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ไม่พบข้อมูลผู้ใช้'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => ReportDialog(
+        classSessionId: widget.classSessionId!,
+        reportUserId: userId,
+        reportedUserId: widget.teacherId!,
+        reportedUserName: widget.teacherName ?? 'ครูผู้สอน',
+      ),
+    );
   }
 }

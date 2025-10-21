@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:tutorium_frontend/models/models.dart';
 import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
 import 'package:tutorium_frontend/util/schedule_validator.dart';
@@ -26,13 +25,6 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
   DateTime _enrollmentDeadline = DateTime.now().add(const Duration(hours: 12));
 
   bool _isLoading = false;
-  List<ClassSession> _existingSessions = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadExistingSessions();
-  }
 
   @override
   void dispose() {
@@ -40,19 +32,6 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
     _priceController.dispose();
     _learnerLimitController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadExistingSessions() async {
-    try {
-      final sessions = await ClassSessionService.getSessionsByClass(
-        widget.classModel.id,
-      );
-      setState(() {
-        _existingSessions = sessions;
-      });
-    } catch (e) {
-      // Handle error silently
-    }
   }
 
   Future<void> _selectDate(BuildContext context, bool isStart) async {
@@ -152,21 +131,34 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
       return;
     }
 
-    // Check for conflicts
-    final conflict = ScheduleValidator.findConflict(
-      startDateTime,
-      endDateTime,
-      _existingSessions,
-    );
-
-    if (conflict != null) {
-      final shouldContinue = await _showConflictDialog(conflict);
-      if (!shouldContinue) return;
-    }
-
     setState(() {
       _isLoading = true;
     });
+
+    // Check for teacher schedule conflicts
+    final validationResult =
+        await ScheduleValidator.validateBeforeCreateSession(
+          teacherId: widget.classModel.teacherId,
+          classStart: startDateTime,
+          classFinish: endDateTime,
+        );
+
+    if (!validationResult['valid']) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(validationResult['message'] ?? 'พบเวลาทับกัน'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
 
     try {
       // Convert to UTC and format properly for backend
@@ -220,64 +212,6 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
         });
       }
     }
-  }
-
-  Future<bool> _showConflictDialog(ClassSession conflict) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.warning, color: Colors.orange),
-                SizedBox(width: 8),
-                Text('Schedule Conflict'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('This session conflicts with:'),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        conflict.description,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${_formatDateTime(conflict.classStart)} - ${_formatTime(conflict.classFinish)}',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text('Do you want to continue anyway?'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                child: const Text('Continue'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
   }
 
   @override
@@ -414,7 +348,7 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
+            color: Colors.blue.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -682,9 +616,5 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
 
   String _formatDateTime(DateTime dt) {
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _formatTime(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
