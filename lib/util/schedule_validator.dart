@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:tutorium_frontend/models/class_models.dart' as models;
 import 'package:tutorium_frontend/service/class_sessions.dart'
     as class_sessions;
 import 'package:tutorium_frontend/service/enrollments.dart' as enrollment_api;
+import 'package:tutorium_frontend/service/classes.dart' as classes_api;
 
 /// ตรวจสอบและป้องกันการลงเวลาทับกันของ Class Sessions
 /// สำหรับทั้ง Teacher และ Learner
@@ -64,34 +66,63 @@ class ScheduleValidator {
     int? excludeSessionId, // ใช้ตอน update session เพื่อไม่ให้เช็คกับตัวเอง
   }) async {
     try {
-      // ดึง Class Sessions ทั้งหมดของ Teacher
-      // ต้องดึงผ่าน Classes ที่ teacher เป็นเจ้าของ
-      final allSessions = await class_sessions.ClassSession.fetchAll(
-        query: {
-          'teacher_id': teacherId,
-          'status': 'scheduled', // เฉพาะที่ยังไม่จบ
-        },
+      // ดึง Classes ทั้งหมดของ Teacher ก่อน
+      final teacherClasses = await classes_api.ClassInfo.fetchByTeacher(
+        teacherId,
       );
 
-      // กรอง session ที่ต้องการไม่เช็ค
-      final sessionsToCheck = excludeSessionId != null
-          ? allSessions.where((s) => s.id != excludeSessionId).toList()
-          : allSessions;
+      if (teacherClasses.isEmpty) {
+        // ถ้าไม่มี class ก็ไม่มีปัญหาเวลาทับ
+        return {'valid': true, 'message': null, 'conflictSessions': null};
+      }
+
+      // ดึง Class Sessions ทั้งหมดของแต่ละ Class
+      final allSessions = <class_sessions.ClassSession>[];
+      for (final teacherClass in teacherClasses) {
+        try {
+          final sessions = await class_sessions.ClassSession.fetchAll(
+            query: {'class_id': teacherClass.id},
+          );
+          allSessions.addAll(sessions);
+        } catch (e) {
+          debugPrint(
+            '⚠️ Failed to fetch sessions for class ${teacherClass.id}: $e',
+          );
+          // Continue checking other classes even if one fails
+          continue;
+        }
+      }
+
+      // กรอง session ที่ต้องการไม่เช็ค และเฉพาะที่ยังไม่จบ
+      final sessionsToCheck = allSessions.where((s) {
+        if (excludeSessionId != null && s.id == excludeSessionId) {
+          return false;
+        }
+        // เช็คเฉพาะ session ที่ยังไม่จบ (scheduled, ongoing)
+        final status = s.classStatus.toLowerCase();
+        return status == 'scheduled' || status == 'ongoing';
+      }).toList();
 
       // ตรวจสอบทีละ session
       final conflictSessions = <class_sessions.ClassSession>[];
       for (final session in sessionsToCheck) {
-        final sessionStart = DateTime.parse(session.classStart);
-        final sessionEnd = DateTime.parse(session.classFinish);
+        try {
+          final sessionStart = DateTime.parse(session.classStart);
+          final sessionEnd = DateTime.parse(session.classFinish);
 
-        // ใช้ strict mode ห้ามทับแม้แต่เวลาเดียว
-        if (isTimeOverlappingStrict(
-          newStart,
-          newEnd,
-          sessionStart,
-          sessionEnd,
-        )) {
-          conflictSessions.add(session);
+          // ใช้ strict mode ห้ามทับแม้แต่เวลาเดียว
+          if (isTimeOverlappingStrict(
+            newStart,
+            newEnd,
+            sessionStart,
+            sessionEnd,
+          )) {
+            conflictSessions.add(session);
+          }
+        } catch (e) {
+          debugPrint('⚠️ Failed to parse time for session ${session.id}: $e');
+          // Continue checking other sessions
+          continue;
         }
       }
 
@@ -106,11 +137,10 @@ class ScheduleValidator {
 
       return {'valid': true, 'message': null, 'conflictSessions': null};
     } catch (e) {
-      return {
-        'valid': false,
-        'message': 'เกิดข้อผิดพลาดในการตรวจสอบตารางเวลา: $e',
-        'conflictSessions': null,
-      };
+      debugPrint('❌ Error in validateTeacherSchedule: $e');
+      // ถ้า error ให้ return valid: true เพื่อไม่บล็อก user
+      // แต่ควร log error ไว้ตรวจสอบ
+      return {'valid': true, 'message': null, 'conflictSessions': null};
     }
   }
 
@@ -125,15 +155,23 @@ class ScheduleValidator {
     try {
       // ดึง Enrollments ทั้งหมดของ Learner
       final enrollments = await enrollment_api.Enrollment.fetchAll(
-        query: {
-          'learner_id': learnerId,
-          'enrollment_status': 'active', // เฉพาะที่ active
-        },
+        query: {'learner_id': learnerId},
       );
+
+      // กรองเฉพาะ enrollment ที่ active หรือ pending
+      final activeEnrollments = enrollments.where((e) {
+        final status = e.enrollmentStatus.toLowerCase();
+        return status == 'active' || status == 'pending';
+      }).toList();
+
+      if (activeEnrollments.isEmpty) {
+        // ถ้าไม่มี enrollment ก็ไม่มีปัญหาเวลาทับ
+        return {'valid': true, 'message': null, 'conflictSessions': null};
+      }
 
       // ดึง Class Sessions ที่เกี่ยวข้อง
       final conflictSessions = <class_sessions.ClassSession>[];
-      for (final enrollment in enrollments) {
+      for (final enrollment in activeEnrollments) {
         // ข้ามถ้าเป็น session ที่ต้องการไม่เช็ค
         if (excludeSessionId != null &&
             enrollment.classSessionId == excludeSessionId) {
@@ -144,20 +182,30 @@ class ScheduleValidator {
           final session = await class_sessions.ClassSession.fetchById(
             enrollment.classSessionId,
           );
-          final sessionStart = DateTime.parse(session.classStart);
-          final sessionEnd = DateTime.parse(session.classFinish);
 
-          // ใช้ strict mode ห้ามทับแม้แต่เวลาเดียว
-          if (isTimeOverlappingStrict(
-            newStart,
-            newEnd,
-            sessionStart,
-            sessionEnd,
-          )) {
-            conflictSessions.add(session);
+          try {
+            final sessionStart = DateTime.parse(session.classStart);
+            final sessionEnd = DateTime.parse(session.classFinish);
+
+            // ใช้ strict mode ห้ามทับแม้แต่เวลาเดียว
+            if (isTimeOverlappingStrict(
+              newStart,
+              newEnd,
+              sessionStart,
+              sessionEnd,
+            )) {
+              conflictSessions.add(session);
+            }
+          } catch (e) {
+            debugPrint('⚠️ Failed to parse time for session ${session.id}: $e');
+            // Continue checking other sessions
+            continue;
           }
         } catch (e) {
-          // ถ้าดึง session ไม่ได้ ข้ามไป
+          debugPrint(
+            '⚠️ Failed to fetch session ${enrollment.classSessionId}: $e',
+          );
+          // Continue checking other enrollments
           continue;
         }
       }
@@ -173,11 +221,10 @@ class ScheduleValidator {
 
       return {'valid': true, 'message': null, 'conflictSessions': null};
     } catch (e) {
-      return {
-        'valid': false,
-        'message': 'เกิดข้อผิดพลาดในการตรวจสอบตารางเวลา: $e',
-        'conflictSessions': null,
-      };
+      debugPrint('❌ Error in validateLearnerSchedule: $e');
+      // ถ้า error ให้ return valid: true เพื่อไม่บล็อก user
+      // แต่ควร log error ไว้ตรวจสอบ
+      return {'valid': true, 'message': null, 'conflictSessions': null};
     }
   }
 
@@ -212,21 +259,27 @@ class ScheduleValidator {
     try {
       // ดึงข้อมูล session ที่จะ enroll
       final session = await class_sessions.ClassSession.fetchById(sessionId);
-      final sessionStart = DateTime.parse(session.classStart);
-      final sessionEnd = DateTime.parse(session.classFinish);
 
-      // ตรวจสอบว่าไม่ทับกับ enrollment อื่นของ learner
-      return await validateLearnerSchedule(
-        learnerId: learnerId,
-        newStart: sessionStart,
-        newEnd: sessionEnd,
-      );
+      try {
+        final sessionStart = DateTime.parse(session.classStart);
+        final sessionEnd = DateTime.parse(session.classFinish);
+
+        // ตรวจสอบว่าไม่ทับกับ enrollment อื่นของ learner
+        return await validateLearnerSchedule(
+          learnerId: learnerId,
+          newStart: sessionStart,
+          newEnd: sessionEnd,
+          excludeSessionId: sessionId,
+        );
+      } catch (e) {
+        debugPrint('⚠️ Failed to parse session time: $e');
+        // ถ้า parse time ไม่ได้ ให้ผ่าน (ไม่บล็อก)
+        return {'valid': true, 'message': null, 'conflictSessions': null};
+      }
     } catch (e) {
-      return {
-        'valid': false,
-        'message': 'ไม่สามารถดึงข้อมูล Class Session ได้: $e',
-        'conflictSessions': null,
-      };
+      debugPrint('❌ Error in validateBeforeEnroll: $e');
+      // ถ้า error ให้ return valid: true เพื่อไม่บล็อก user
+      return {'valid': true, 'message': null, 'conflictSessions': null};
     }
   }
 
