@@ -3,7 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:tutorium_frontend/pages/search/class_enroll.dart';
 import 'package:tutorium_frontend/util/custom_cache_manager.dart';
 
-class ScheduleCard_search extends StatelessWidget {
+class ScheduleCardSearch extends StatelessWidget {
   final int classId;
   final String className;
   final int? enrolledLearner; // Make optional
@@ -17,7 +17,7 @@ class ScheduleCard_search extends StatelessWidget {
   final double rating;
   final bool showSchedule;
 
-  const ScheduleCard_search({
+  const ScheduleCardSearch({
     super.key,
     required this.classId,
     required this.className,
@@ -156,7 +156,7 @@ class ScheduleCard_search extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: statusColor.withOpacity(0.3),
+                              color: statusColor.withValues(alpha: 0.3),
                               blurRadius: 8,
                               spreadRadius: 2,
                             ),

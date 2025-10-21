@@ -32,7 +32,62 @@ class _EnrollButtonState extends State<EnrollButton> {
     });
 
     try {
-      // 1. ตรวจสอบเวลาทับกันก่อน
+      // 1. ตรวจสอบว่าลงทะเบียนซ้ำหรือไม่
+      final existingEnrollments = await Enrollment.fetchAll(
+        query: {
+          'learner_id': widget.learnerId,
+          'class_session_id': widget.sessionId,
+        },
+      );
+
+      if (existingEnrollments.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('คุณลงทะเบียนคลาสนี้แล้ว'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 2. ตรวจสอบว่าคลาสเต็มหรือไม่ (จำกัดไม่เกิน 20 คน)
+      final session = await ClassSession.fetchById(widget.sessionId);
+      final enrollments = await Enrollment.fetchAll(
+        query: {'class_session_id': widget.sessionId},
+      );
+      final currentEnrollmentCount = enrollments
+          .where((e) => e.enrollmentStatus == 'active')
+          .length;
+
+      // Enforce maximum of 20 participants per session
+      const maxParticipants = 20;
+      final effectiveLimit = session.learnerLimit > maxParticipants
+          ? maxParticipants
+          : session.learnerLimit;
+
+      if (currentEnrollmentCount >= effectiveLimit) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'ขอโทษ คลาสนี้เต็มแล้ว (รับได้สูงสุด $effectiveLimit คน)',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 3. ตรวจสอบเวลาทับกันก่อน
       final validationResult = await ScheduleValidator.validateBeforeEnroll(
         learnerId: widget.learnerId,
         sessionId: widget.sessionId,
@@ -53,7 +108,7 @@ class _EnrollButtonState extends State<EnrollButton> {
         return;
       }
 
-      // 2. แสดง confirmation dialog
+      // 4. แสดง confirmation dialog
       if (mounted) {
         final confirmed = await showDialog<bool>(
           context: context,
@@ -81,7 +136,7 @@ class _EnrollButtonState extends State<EnrollButton> {
         }
       }
 
-      // 3. สร้าง enrollment
+      // 5. สร้าง enrollment
       final enrollment = Enrollment(
         classSessionId: widget.sessionId,
         enrollmentStatus: 'active',
@@ -90,7 +145,7 @@ class _EnrollButtonState extends State<EnrollButton> {
 
       await Enrollment.create(enrollment);
 
-      // 4. ดึงข้อมูล session และ class เพื่อ schedule notification
+      // 6. ดึงข้อมูล session และ class เพื่อ schedule notification
       try {
         final session = await ClassSession.fetchById(widget.sessionId);
         final classInfo = await ClassInfo.fetchById(session.classId);
@@ -99,13 +154,13 @@ class _EnrollButtonState extends State<EnrollButton> {
         await LocalNotificationService().scheduleClassReminders(
           classSessionId: widget.sessionId,
           className: classInfo.className,
-          classStartTime: session.classStart.toLocal(),
+          classStartTime: DateTime.parse(session.classStart).toLocal(),
         );
 
         // Show enrollment success notification
         await LocalNotificationService().showEnrollmentSuccess(
           className: classInfo.className,
-          classStartTime: session.classStart.toLocal(),
+          classStartTime: DateTime.parse(session.classStart).toLocal(),
         );
 
         debugPrint(
@@ -218,7 +273,7 @@ class ClassSessionCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.deadline,
+                  Icons.access_time,
                   size: 16,
                   color: isExpired ? Colors.red : Colors.orange,
                 ),
@@ -249,7 +304,7 @@ class ClassSessionCard extends StatelessWidget {
                 const Icon(Icons.people, size: 16, color: Colors.blue),
                 const SizedBox(width: 4),
                 Text(
-                  'รับ ${session.learnerLimit} คน',
+                  'รับ ${session.learnerLimit > 20 ? 20 : session.learnerLimit} คน',
                   style: const TextStyle(color: Colors.blue),
                 ),
               ],

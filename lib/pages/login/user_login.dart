@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:tutorium_frontend/pages/main_nav_page.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
 import 'package:tutorium_frontend/util/cache_user.dart';
 import 'package:tutorium_frontend/service/users.dart' as user_api;

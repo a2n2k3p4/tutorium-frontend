@@ -12,7 +12,7 @@ class ClassInfo {
   final int id;
   final String name;
   final String teacherName;
-  final int teacher_id;
+  final int teacherId;
   final String description;
   final double rating;
   final List<String> categories;
@@ -22,7 +22,7 @@ class ClassInfo {
     required this.id,
     required this.name,
     required this.teacherName,
-    required this.teacher_id,
+    required this.teacherId,
     required this.description,
     required this.rating,
     required this.categories,
@@ -40,7 +40,7 @@ class ClassInfo {
       id: json["ID"] ?? json["id"] ?? 0,
       name: json["class_name"] ?? "",
       teacherName: json["teacherName"] ?? "",
-      teacher_id: json["teacher_id"] ?? 1,
+      teacherId: json["teacher_id"] ?? 1,
       description: json["class_description"] ?? "",
       rating: (json["rating"] is num)
           ? (json["rating"] as num).toDouble()

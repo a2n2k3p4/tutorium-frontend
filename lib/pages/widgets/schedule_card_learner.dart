@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:tutorium_frontend/pages/learn/learn.dart';
+import 'package:tutorium_frontend/pages/learn/class_detail_page.dart';
 import 'package:tutorium_frontend/util/custom_cache_manager.dart';
 
 class ScheduleCardLearner extends StatelessWidget {
@@ -43,6 +44,22 @@ class ScheduleCardLearner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth < 600;
+
+    // Responsive image dimensions
+    final imageWidth = isSmallScreen
+        ? 90.0
+        : isMediumScreen
+        ? 100.0
+        : 110.0;
+    final imageHeight = isSmallScreen
+        ? 120.0
+        : isMediumScreen
+        ? 130.0
+        : 140.0;
+
     // Check if class is happening now
     final now = DateTime.now();
     final startDateTime = DateTime(
@@ -64,20 +81,41 @@ class ScheduleCardLearner extends StatelessWidget {
     final isPast = now.isAfter(endDateTime);
 
     return GestureDetector(
-      onTap: () {
-        // Navigate to LearnPage when card is tapped
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => LearnPage(
-              classSessionId: classSessionId,
-              className: className,
-              teacherName: teacherName,
-              jitsiMeetingUrl: classUrl,
-              isTeacher: isTeacher,
+      onTap: () async {
+        // Check if user has viewed class details before
+        final hasViewed = await ClassDetailPage.hasViewed(classSessionId);
+
+        if (!context.mounted) return;
+
+        if (hasViewed) {
+          // Go directly to LearnPage if already viewed
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LearnPage(
+                classSessionId: classSessionId,
+                className: className,
+                teacherName: teacherName,
+                jitsiMeetingUrl: classUrl,
+                isTeacher: isTeacher,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          // Show ClassDetailPage first
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ClassDetailPage(
+                classSessionId: classSessionId,
+                className: className,
+                teacherName: teacherName,
+                jitsiMeetingUrl: classUrl,
+                isTeacher: isTeacher,
+              ),
+            ),
+          );
+        }
       },
       child: Container(
         decoration: BoxDecoration(
@@ -85,7 +123,7 @@ class ScheduleCardLearner extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.15),
+              color: Colors.grey.withValues(alpha: 0.15),
               spreadRadius: 1,
               blurRadius: 8,
               offset: const Offset(0, 2),
@@ -108,14 +146,14 @@ class ScheduleCardLearner extends StatelessWidget {
                     topLeft: Radius.circular(16),
                     bottomLeft: Radius.circular(16),
                   ),
-                  child: _buildImage(),
+                  child: _buildImage(imageWidth, imageHeight),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: isSmallScreen ? 8 : 16),
                 // Content
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
+                    padding: EdgeInsets.symmetric(
+                      vertical: isSmallScreen ? 8 : 12,
                       horizontal: 4,
                     ),
                     child: Column(
@@ -125,28 +163,28 @@ class ScheduleCardLearner extends StatelessWidget {
                         Text(
                           className,
                           style: TextStyle(
-                            fontSize: 18.0,
+                            fontSize: isSmallScreen ? 15.0 : 18.0,
                             fontWeight: FontWeight.w600,
                             color: isPast ? Colors.grey[600] : Colors.black87,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: isSmallScreen ? 6 : 8),
                         // Date and time
                         Row(
                           children: [
                             Icon(
                               Icons.calendar_today,
-                              size: 14,
+                              size: isSmallScreen ? 12 : 14,
                               color: Colors.grey[600],
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: isSmallScreen ? 4 : 6),
                             Expanded(
                               child: Text(
                                 '${date.day}/${date.month}/${date.year}',
                                 style: TextStyle(
-                                  fontSize: 13.0,
+                                  fontSize: isSmallScreen ? 11.0 : 13.0,
                                   color: Colors.grey[700],
                                 ),
                               ),
@@ -158,14 +196,14 @@ class ScheduleCardLearner extends StatelessWidget {
                           children: [
                             Icon(
                               Icons.access_time,
-                              size: 14,
+                              size: isSmallScreen ? 12 : 14,
                               color: Colors.grey[600],
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: isSmallScreen ? 4 : 6),
                             Text(
                               '${formatTime24(startTime)} - ${formatTime24(endTime)}',
                               style: TextStyle(
-                                fontSize: 13.0,
+                                fontSize: isSmallScreen ? 11.0 : 13.0,
                                 color: Colors.grey[700],
                                 fontWeight: FontWeight.w500,
                               ),
@@ -178,15 +216,15 @@ class ScheduleCardLearner extends StatelessWidget {
                           children: [
                             Icon(
                               Icons.person,
-                              size: 14,
+                              size: isSmallScreen ? 12 : 14,
                               color: Colors.grey[600],
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: isSmallScreen ? 4 : 6),
                             Expanded(
                               child: Text(
                                 teacherName,
                                 style: TextStyle(
-                                  fontSize: 13.0,
+                                  fontSize: isSmallScreen ? 11.0 : 13.0,
                                   color: Colors.grey[700],
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -200,14 +238,14 @@ class ScheduleCardLearner extends StatelessWidget {
                           children: [
                             Icon(
                               Icons.group,
-                              size: 14,
+                              size: isSmallScreen ? 12 : 14,
                               color: Colors.grey[600],
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: isSmallScreen ? 4 : 6),
                             Text(
                               '$enrolledLearner ผู้เรียน',
                               style: TextStyle(
-                                fontSize: 13.0,
+                                fontSize: isSmallScreen ? 11.0 : 13.0,
                                 color: Colors.grey[700],
                               ),
                             ),
@@ -219,25 +257,25 @@ class ScheduleCardLearner extends StatelessWidget {
                 ),
                 // Status indicator
                 Padding(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: EdgeInsets.all(isSmallScreen ? 8.0 : 12.0),
                   child: Column(
                     children: [
                       if (isHappeningNow)
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                           decoration: const BoxDecoration(
                             color: Colors.green,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.videocam_rounded,
                             color: Colors.white,
-                            size: 28,
+                            size: isSmallScreen ? 22 : 28,
                           ),
                         )
                       else if (isPast)
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                           decoration: BoxDecoration(
                             color: Colors.grey[300],
                             shape: BoxShape.circle,
@@ -245,20 +283,20 @@ class ScheduleCardLearner extends StatelessWidget {
                           child: Icon(
                             Icons.check_circle,
                             color: Colors.grey[600],
-                            size: 28,
+                            size: isSmallScreen ? 22 : 28,
                           ),
                         )
                       else
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                           decoration: BoxDecoration(
                             color: Colors.amber[50],
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.schedule,
                             color: Colors.amber,
-                            size: 28,
+                            size: isSmallScreen ? 22 : 28,
                           ),
                         ),
                     ],
@@ -342,10 +380,8 @@ class ScheduleCardLearner extends StatelessWidget {
     );
   }
 
-  Widget _buildImage() {
+  Widget _buildImage(double width, double height) {
     const fallback = 'assets/images/guitar.jpg';
-    final width = 110.0;
-    final height = 140.0;
 
     if (imagePath.toLowerCase().startsWith('data:image')) {
       try {

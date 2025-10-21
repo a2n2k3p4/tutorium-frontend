@@ -233,21 +233,29 @@ class _CreateSessionFormState extends State<CreateSessionForm> {
             ),
             const SizedBox(height: 16),
 
-            // Learner Limit
+            // Learner Limit (จำกัดไม่เกิน 20 คน)
             TextFormField(
               controller: _learnerLimitController,
               decoration: const InputDecoration(
-                labelText: 'จำนวนที่รับ (คน)',
+                labelText: 'จำนวนที่รับ (สูงสุด 20 คน)',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.people),
+                helperText: 'จำกัดไม่เกิน 20 คนต่อ session',
               ),
               keyboardType: TextInputType.number,
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'กรุณากรอกจำนวนที่รับ';
                 }
-                if (int.tryParse(value) == null) {
+                final limit = int.tryParse(value);
+                if (limit == null) {
                   return 'กรุณากรอกตัวเลข';
+                }
+                if (limit <= 0) {
+                  return 'จำนวนต้องมากกว่า 0';
+                }
+                if (limit > 20) {
+                  return 'จำนวนไม่สามารถเกิน 20 คนต่อ session';
                 }
                 return null;
               },
@@ -289,7 +297,7 @@ class _CreateSessionFormState extends State<CreateSessionForm> {
             // Enrollment Deadline
             Card(
               child: ListTile(
-                leading: const Icon(Icons.deadline),
+                leading: const Icon(Icons.access_time),
                 title: const Text('เวลาปิดรับสมัคร'),
                 subtitle: Text(
                   _enrollmentDeadline != null

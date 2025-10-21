@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class ScheduleCard_search extends StatelessWidget {
+class ScheduleCardRecommend extends StatelessWidget {
   final String className;
   final int enrolledLearner;
   final int learnerLimit;
@@ -10,8 +10,8 @@ class ScheduleCard_search extends StatelessWidget {
   final TimeOfDay endTime;
   final String imagePath;
 
-  const ScheduleCard_search({
-    Key? key,
+  const ScheduleCardRecommend({
+    super.key,
     required this.className,
     required this.enrolledLearner,
     required this.learnerLimit,
@@ -20,7 +20,7 @@ class ScheduleCard_search extends StatelessWidget {
     required this.startTime,
     required this.endTime,
     required this.imagePath,
-  }) : super(key: key);
+  });
 
   String formatTime24(TimeOfDay time) {
     final h = time.hour.toString().padLeft(2, '0');
@@ -96,7 +96,7 @@ class ScheduleCard_search extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: statusColor.withOpacity(0.3),
+                            color: statusColor.withValues(alpha: 0.3),
                             blurRadius: 8,
                             spreadRadius: 2,
                           ),

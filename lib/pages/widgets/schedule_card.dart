@@ -10,7 +10,7 @@ class ScheduleCard extends StatelessWidget {
   final String imagePath;
 
   const ScheduleCard({
-    Key? key,
+    super.key,
     required this.className,
     required this.enrolledLearner,
     required this.teacherName,
@@ -18,7 +18,7 @@ class ScheduleCard extends StatelessWidget {
     required this.startTime,
     required this.endTime,
     required this.imagePath,
-  }) : super(key: key);
+  });
 
   String formatTime24(TimeOfDay time) {
     final hour = time.hour.toString().padLeft(2, '0');
