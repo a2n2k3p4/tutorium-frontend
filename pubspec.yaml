@@ -45,6 +45,8 @@ dependencies:
   connectivity_plus: ^6.1.2
   shimmer: ^3.0.0
   cached_network_image: ^3.4.1
+  dio: ^5.7.0
+  intl: ^0.19.0
 
   #  jitsi meeting sdk ref: https://jitsi.support/developer/integrating-jitsi-flutter-guide/
   jitsi_meet_flutter_sdk: ^11.6.0
@@ -60,6 +62,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -73,6 +76,14 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/KT.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/images/KT.png"
 
   # To add assets to your application, add an assets section, like this:
   # assets:
