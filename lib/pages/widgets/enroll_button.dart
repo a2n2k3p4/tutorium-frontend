@@ -48,7 +48,8 @@ class _EnrollButtonState extends State<EnrollButton> {
 
       // ดึงข้อมูล current user เพื่อเช็ค teacher ID
       final currentUser = await User.fetchById(await _getCurrentUserId());
-      if (currentUser.teacher != null && currentUser.teacher!.id == classInfo.teacherId) {
+      if (currentUser.teacher != null &&
+          currentUser.teacher!.id == classInfo.teacherId) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

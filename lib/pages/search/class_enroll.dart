@@ -771,7 +771,8 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
         final userId = await LocalStorage.getUserId();
         if (userId != null) {
           final fullUser = await user_api.User.fetchById(userId);
-          if (fullUser.teacher != null && fullUser.teacher!.id == classInfo!.teacherId) {
+          if (fullUser.teacher != null &&
+              fullUser.teacher!.id == classInfo!.teacherId) {
             if (mounted) {
               ScaffoldMessenger.of(parentContext).showSnackBar(
                 const SnackBar(
