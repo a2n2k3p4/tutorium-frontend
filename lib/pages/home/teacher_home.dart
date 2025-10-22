@@ -525,19 +525,7 @@ class TeacherHomePageState extends State<TeacherHomePage> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue[400]!, Colors.blue[700]!],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.school, color: Colors.white, size: 36),
-              ),
+              _buildClassThumbnail(classModel),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -590,6 +578,39 @@ class TeacherHomePageState extends State<TeacherHomePage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildClassThumbnail(ClassModel classModel) {
+    const double size = 70;
+    final imageUrl = classModel.bannerPicture;
+
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _buildClassThumbnailPlaceholder(size: size);
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        imageUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            _buildClassThumbnailPlaceholder(size: size),
+      ),
+    );
+  }
+
+  Widget _buildClassThumbnailPlaceholder({double size = 70}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(Icons.image, color: Colors.blue[700], size: size * 0.5),
     );
   }
 

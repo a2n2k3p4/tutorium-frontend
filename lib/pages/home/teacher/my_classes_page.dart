@@ -389,7 +389,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
         color: Colors.blue[50],
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(Icons.class_, color: Colors.blue[700], size: size * 0.55),
+      child: Icon(Icons.image, color: Colors.blue[700], size: size * 0.55),
     );
   }
 
