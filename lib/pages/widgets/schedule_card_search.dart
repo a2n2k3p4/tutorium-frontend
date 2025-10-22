@@ -75,7 +75,7 @@ class ScheduleCardSearch extends StatelessWidget {
     }
 
     // คำนวณเปอร์เซ็นต์ที่จองแล้ว (only if data available)
-    final enrollmentPercentage = showEnrollmentInfo
+    final enrollmentPercentage = (showEnrollmentInfo && learnerLimit != null && learnerLimit! > 0)
         ? ((enrolledLearner! / learnerLimit!) * 100).clamp(0, 100)
         : 0.0;
 
