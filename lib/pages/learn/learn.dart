@@ -8,7 +8,6 @@ import 'package:tutorium_frontend/pages/learn/mandatory_review_page.dart';
 import 'package:tutorium_frontend/pages/learn/class_participants_page.dart';
 import 'package:tutorium_frontend/service/class_sessions.dart'
     as class_sessions;
-import 'package:tutorium_frontend/service/class_readiness_service.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
 import 'package:tutorium_frontend/service/classes.dart' as classes;
 
@@ -24,14 +23,14 @@ class _JitsiMeetingConfig {
   final String? token;
 }
 
-/// Learn Page - Beautiful Video Conferencing Interface
+/// Learn Page - Simple Video Conferencing Interface
 /// Integrates with Jitsi Meet for live tutoring sessions
 class LearnPage extends StatefulWidget {
   final int classSessionId;
   final String className;
   final String teacherName;
   final bool isTeacher;
-  final String jitsiMeetingUrl; // Jitsi Meeting URL from Backend
+  final String jitsiMeetingUrl;
 
   const LearnPage({
     super.key,
@@ -53,9 +52,6 @@ class _LearnPageState extends State<LearnPage>
   final List<ChatMessage> _chatMessages = [];
 
   bool _isInConference = false;
-  bool _isAudioMuted = false;
-  bool _isVideoMuted = false;
-  bool _isScreenSharing = false;
   bool _isLoading = true;
   bool _showChat = false;
   String? _errorMessage;
@@ -69,23 +65,12 @@ class _LearnPageState extends State<LearnPage>
 
   String? _userName;
   String? _userEmail;
-  int? _userId;
   int? _learnerId;
 
   class_sessions.ClassSession? _classSession;
-  DateTime? _classStart;
   DateTime? _classFinish;
-  Timer? _countdownTimer;
-  Timer? _broadcastTimer;
   Timer? _copyResetTimer;
-  Duration? _timeUntilStart;
-  bool _teacherReady = false;
-  bool _learnerReady = false;
-  bool _hasBroadcastReady = false;
-  bool _isClassCompleted = false;
   bool _reviewShown = false;
-  bool _isMarkingReady = false;
-  bool _isMarkingLearnerReady = false;
 
   @override
   void initState() {
@@ -130,23 +115,14 @@ class _LearnPageState extends State<LearnPage>
       final prefs = await SharedPreferences.getInstance();
       final storedName = prefs.getString('userName') ?? 'Student';
       final storedEmail = prefs.getString('userEmail') ?? 'student@ku.th';
-      final userId = await LocalStorage.getUserId();
       final learnerId = await LocalStorage.getLearnerId();
-      final readyKey = _learnerReadyPrefKey(learnerId);
-      final storedReady = readyKey != null
-          ? prefs.getBool(readyKey) ?? false
-          : false;
 
       if (!mounted) return;
 
       setState(() {
         _userName = storedName;
         _userEmail = storedEmail;
-        _userId = userId;
         _learnerId = learnerId;
-        if (storedReady) {
-          _learnerReady = true;
-        }
         if (!widget.isTeacher && learnerId == null) {
           _errorMessage = 'ไม่พบ Learner ID โปรดเข้าสู่ระบบใหม่';
         }
@@ -165,35 +141,14 @@ class _LearnPageState extends State<LearnPage>
         widget.classSessionId,
       );
 
-      final normalized = ClassReadinessService.normalizeStatus(
-        session.classStatus,
-      );
-      final start = _parseDateTime(session.classStart);
       final finish = _parseDateTime(session.classFinish);
-      final teacherReady =
-          normalized == ClassReadinessService.statusTeacherReady ||
-          normalized == ClassReadinessService.statusLive ||
-          normalized == ClassReadinessService.statusCompleted;
-      final isCompleted = normalized == ClassReadinessService.statusCompleted;
-      final broadcastAlready =
-          normalized == ClassReadinessService.statusLive ||
-          normalized == ClassReadinessService.statusCompleted;
 
       if (!mounted) return;
 
       setState(() {
         _classSession = session;
-        _classStart = start;
         _classFinish = finish;
-        _teacherReady = teacherReady;
-        _isClassCompleted = isCompleted;
-        if (broadcastAlready) {
-          _hasBroadcastReady = true;
-        }
       });
-
-      _startCountdown();
-      _scheduleBroadcastTimer();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -214,256 +169,10 @@ class _LearnPageState extends State<LearnPage>
     }
   }
 
-  void _startCountdown() {
-    _countdownTimer?.cancel();
-    _updateCountdown();
-    if (_classStart == null) {
-      return;
-    }
-    _countdownTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      _updateCountdown();
-    });
-  }
-
-  void _updateCountdown() {
-    if (!mounted) return;
-
-    if (_classStart == null) {
-      setState(() {
-        _timeUntilStart = null;
-      });
-      return;
-    }
-
-    final now = DateTime.now();
-    final diff = _classStart!.difference(now);
-
-    setState(() {
-      _timeUntilStart = diff;
-    });
-
-    _checkBroadcastCondition(now);
-  }
-
-  void _checkBroadcastCondition(DateTime now) {
-    if (!widget.isTeacher) return;
-    if (_hasBroadcastReady) return;
-    if (!_teacherReady) return;
-    if (_classStart == null) return;
-
-    final broadcastTime = _classStart!.subtract(const Duration(minutes: 5));
-    if (!now.isBefore(broadcastTime)) {
-      _broadcastTeacherReady();
-    }
-  }
-
-  void _scheduleBroadcastTimer() {
-    _broadcastTimer?.cancel();
-
-    if (!widget.isTeacher) return;
-    if (_hasBroadcastReady) return;
-    if (!_teacherReady) return;
-    if (_classStart == null) return;
-
-    final now = DateTime.now();
-    final broadcastTime = _classStart!.subtract(const Duration(minutes: 5));
-
-    if (!now.isBefore(broadcastTime)) {
-      _broadcastTeacherReady();
-      return;
-    }
-
-    final delay = broadcastTime.difference(now);
-    _broadcastTimer = Timer(delay, () {
-      _broadcastTeacherReady();
-    });
-  }
-
-  Future<void> _broadcastTeacherReady() async {
-    if (!widget.isTeacher) return;
-    if (_hasBroadcastReady) return;
-    if (_classSession == null) return;
-
-    _broadcastTimer?.cancel();
-
-    try {
-      await ClassReadinessService.broadcastTeacherReady(
-        classSessionId: widget.classSessionId,
-        className: widget.className,
-        teacherName: widget.teacherName,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _hasBroadcastReady = true;
-      });
-
-      _showSnackBar(
-        'แจ้งผู้เรียนแล้วว่าคลาสพร้อมเริ่ม',
-        Icons.campaign_rounded,
-        Colors.purple.shade600,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      _showErrorDialog('ส่งประกาศไม่สำเร็จ: $e');
-    }
-  }
-
-  Future<void> _handleTeacherReady() async {
-    if (_teacherReady) {
-      _showSnackBar(
-        'ประกาศสถานะ "พร้อมสอน" แล้ว',
-        Icons.check_circle_outline,
-        Colors.purple.shade400,
-      );
-      return;
-    }
-
-    if (!_isTeacherWindowOpen()) {
-      _showErrorDialog('กดพร้อมสอนได้ล่วงหน้า 10 นาทีเท่านั้น');
-      return;
-    }
-
-    if (_classSession == null) {
-      await _loadSessionInformation();
-    }
-
-    if (_classSession == null) {
-      _showErrorDialog('ไม่พบข้อมูลคลาสสำหรับตั้งค่าพร้อมสอน');
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _isMarkingReady = true;
-      });
-    }
-
-    final wasLate = _isTeacherTooLateToMarkReady();
-
-    try {
-      final updated = await ClassReadinessService.markTeacherReady(
-        _classSession!,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _classSession = updated;
-        _teacherReady = true;
-        _isClassCompleted =
-            ClassReadinessService.normalizeStatus(updated.classStatus) ==
-            ClassReadinessService.statusCompleted;
-      });
-
-      _scheduleBroadcastTimer();
-
-      final message = wasLate
-          ? 'ตั้งสถานะพร้อมสอนแล้ว (เกินเวลา 10 นาที)'
-          : 'ตั้งสถานะพร้อมสอนแล้ว';
-
-      _showSnackBar(message, Icons.school_rounded, Colors.purple.shade600);
-    } catch (e) {
-      if (!mounted) return;
-      _showErrorDialog('ตั้งค่าว่าพร้อมสอนไม่สำเร็จ: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isMarkingReady = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _handleLearnerReady() async {
-    if (_learnerReady) {
-      _showSnackBar(
-        'ยืนยันแล้วว่าพร้อมเรียน',
-        Icons.check_circle_outline,
-        Colors.blue.shade500,
-      );
-      return;
-    }
-
-    if (!_teacherReady) {
-      _showErrorDialog('รอผู้สอนกดยืนยันว่าพร้อมก่อน');
-      return;
-    }
-
-    if (!_isLearnerReadyWindowOpen()) {
-      _showErrorDialog('ยืนยันได้ก่อนเวลาเริ่ม 5 นาที');
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _isMarkingLearnerReady = true;
-      });
-    }
-
-    try {
-      if (!mounted) return;
-      setState(() {
-        _learnerReady = true;
-      });
-      await _persistLearnerReady(true);
-      _showSnackBar(
-        'พร้อมเข้าเรียนแล้ว! กดเข้าห้องได้เลย',
-        Icons.emoji_emotions_rounded,
-        Colors.blue.shade600,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isMarkingLearnerReady = false;
-        });
-      }
-    }
-  }
-
-  String? _learnerReadyPrefKey(int? learnerId) {
-    if (learnerId == null) return null;
-    return 'learner_ready_${widget.classSessionId}_$learnerId';
-  }
-
-  Future<void> _persistLearnerReady(bool value) async {
-    final key = _learnerReadyPrefKey(_learnerId);
-    if (key == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(key, value);
-  }
-
-  bool get _isTeacher => widget.isTeacher;
-
-  bool _isTeacherWindowOpen() {
-    if (_classStart == null) return true;
-    final now = DateTime.now();
-    final earliest = _classStart!.subtract(const Duration(minutes: 10));
-    return !now.isBefore(earliest);
-  }
-
-  bool _isTeacherTooLateToMarkReady() {
-    if (_classStart == null) return false;
-    final latest = _classStart!.add(const Duration(minutes: 10));
-    return DateTime.now().isAfter(latest);
-  }
-
-  bool _isLearnerReadyWindowOpen() {
-    if (_classStart == null) return true;
-    final now = DateTime.now();
-    final openAt = _classStart!.subtract(const Duration(minutes: 5));
-    return !now.isBefore(openAt);
-  }
-
-  bool _canLearnerLeave() {
-    if (_isClassCompleted) return true;
-    if (_classFinish == null) return true;
-    return !DateTime.now().isBefore(_classFinish!);
-  }
-
-  bool _canJoinClass() {
-    return _joinDisabledReason() == null;
+  bool _isSessionFinished() {
+    // Check if session has finished
+    if (_classFinish == null) return false;
+    return DateTime.now().isAfter(_classFinish!);
   }
 
   String? _joinDisabledReason() {
@@ -471,29 +180,12 @@ class _LearnPageState extends State<LearnPage>
       return 'ไม่พบลิงก์ห้องเรียนจากระบบ';
     }
 
-    if (_isTeacher) {
-      if (!_teacherReady) {
-        return 'กดปุ่ม "พร้อมสอน" เพื่อเปิดห้อง';
-      }
-      return null;
-    }
-
-    if (!_teacherReady) {
-      return 'รอผู้สอนกดยืนยันว่าพร้อมเริ่มคลาส';
-    }
-
-    if (!_learnerReady) {
-      return 'กดปุ่ม "ฉันพร้อมเรียน" ก่อนเข้าห้อง';
-    }
-
-    if (!_isLearnerReadyWindowOpen()) {
-      return 'เข้าห้องได้ก่อนเวลาเริ่ม 5 นาที';
+    if (_isSessionFinished()) {
+      return 'คลาสจบแล้ว ไม่สามารถเข้าห้องได้';
     }
 
     return null;
   }
-
-  bool _hasValidMeetingLink() => widget.jitsiMeetingUrl.trim().isNotEmpty;
 
   Future<void> _copyMeetingLink() async {
     final link = widget.jitsiMeetingUrl.trim();
@@ -556,90 +248,16 @@ class _LearnPageState extends State<LearnPage>
     }
   }
 
-  String _formatCountdown(Duration? duration) {
-    if (duration == null) {
-      return '--:--:--';
-    }
-    final abs = duration.abs();
-    final hours = abs.inHours;
-    final minutes = abs.inMinutes.remainder(60);
-    final seconds = abs.inSeconds.remainder(60);
-    final prefix = duration.isNegative ? '-' : '';
-    return '$prefix${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDateTimeDisplay(DateTime? dt) {
-    if (dt == null) return '-';
-    final date = dt;
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final year = date.year.toString();
-    final hour = date.hour.toString().padLeft(2, '0');
-    final minute = date.minute.toString().padLeft(2, '0');
-    return '$day/$month/$year $hour:$minute น.';
-  }
-
-  Future<void> _refreshSessionStatus() async {
-    try {
-      await _loadSessionInformation();
-    } catch (_) {
-      // Ignore refresh errors; UI already shows latest known state.
-    }
-  }
-
-  Future<void> _onConferenceJoined() async {
-    if (!widget.isTeacher) return;
-    if (_classSession == null) return;
-
-    try {
-      final updated = await ClassReadinessService.markClassLive(_classSession!);
-      if (!mounted) return;
-      setState(() {
-        _classSession = updated;
-        _isClassCompleted =
-            ClassReadinessService.normalizeStatus(updated.classStatus) ==
-            ClassReadinessService.statusCompleted;
-      });
-    } catch (e) {
-      debugPrint('❌ [LearnPage] Failed to mark class live: $e');
-    }
-  }
-
-  Future<void> _maybeMarkClassCompleted() async {
-    if (!widget.isTeacher) return;
-    if (_classSession == null) return;
-
-    final shouldComplete =
-        _isClassCompleted ||
-        (_classFinish != null && !DateTime.now().isBefore(_classFinish!));
-
-    if (!shouldComplete) return;
-
-    try {
-      final updated = await ClassReadinessService.markClassCompleted(
-        _classSession!,
-      );
-      if (!mounted) return;
-      setState(() {
-        _classSession = updated;
-        _isClassCompleted = true;
-      });
-    } catch (e) {
-      debugPrint('❌ [LearnPage] Failed to mark class complete: $e');
-    }
-  }
-
   Future<void> _handleConferenceTerminated(Object? error) async {
-    await _refreshSessionStatus();
-
     if (widget.isTeacher) {
-      await _maybeMarkClassCompleted();
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
 
-    if (!_canLearnerLeave()) {
+    // For learners, check if they can leave
+    if (_classFinish != null && DateTime.now().isBefore(_classFinish!)) {
+      // Class not finished yet - force rejoin
       if (mounted) {
         _showErrorDialog('คลาสยังไม่จบ ระบบจะพาคุณกลับเข้าเรียน');
       }
@@ -648,6 +266,7 @@ class _LearnPageState extends State<LearnPage>
       return;
     }
 
+    // Class finished - show mandatory review
     await _openMandatoryReview();
   }
 
@@ -697,7 +316,9 @@ class _LearnPageState extends State<LearnPage>
     }
 
     var submitted = false;
-    while (!submitted && mounted) {
+    while (!submitted) {
+      if (!mounted) break;
+
       final result = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           builder: (context) => MandatoryReviewPage(
@@ -718,7 +339,6 @@ class _LearnPageState extends State<LearnPage>
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  // Event listener for Jitsi Meet
   JitsiMeetEventListener get _eventListener => JitsiMeetEventListener(
     conferenceJoined: (url) {
       debugPrint('✅ Conference joined: $url');
@@ -729,7 +349,6 @@ class _LearnPageState extends State<LearnPage>
           _errorMessage = null;
         });
         _startSessionTimer();
-        unawaited(_onConferenceJoined());
       }
     },
     conferenceTerminated: (url, error) {
@@ -784,27 +403,12 @@ class _LearnPageState extends State<LearnPage>
     },
     audioMutedChanged: (isMuted) {
       debugPrint('🎤 Audio muted: $isMuted');
-      if (mounted) {
-        setState(() {
-          _isAudioMuted = isMuted;
-        });
-      }
     },
     videoMutedChanged: (isMuted) {
       debugPrint('📹 Video muted: $isMuted');
-      if (mounted) {
-        setState(() {
-          _isVideoMuted = isMuted;
-        });
-      }
     },
     screenShareToggled: (participantId, isSharing) {
       debugPrint('🖥️ Screen share toggled by $participantId: $isSharing');
-      if (mounted) {
-        setState(() {
-          _isScreenSharing = isSharing;
-        });
-      }
     },
     chatMessageReceived: (senderId, message, isPrivate, privateRecipient) {
       debugPrint(
@@ -847,7 +451,6 @@ class _LearnPageState extends State<LearnPage>
     },
   );
 
-  // Session Timer
   void _startSessionTimer() {
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
@@ -861,7 +464,6 @@ class _LearnPageState extends State<LearnPage>
     _sessionTimer = null;
   }
 
-  // Join Conference - Full Jitsi SDK with ALL features enabled
   Future<void> _joinConference() async {
     final reason = _joinDisabledReason();
     if (reason != null) {
@@ -872,10 +474,6 @@ class _LearnPageState extends State<LearnPage>
     if (_userName == null || _userEmail == null) {
       _showErrorDialog('กรุณาตรวจสอบข้อมูลผู้ใช้');
       return;
-    }
-
-    if (_classSession == null) {
-      await _loadSessionInformation();
     }
 
     final meetingConfig = _parseJitsiMeetingUrl(widget.jitsiMeetingUrl);
@@ -902,94 +500,58 @@ class _LearnPageState extends State<LearnPage>
           "startWithAudioMuted": false,
           "startWithVideoMuted": false,
           "subject": widget.className,
-
-          // Role-based permissions in config
-          "disableRemoteMute":
-              !widget.isTeacher, // Learner ไม่สามารถ mute คนอื่นได้
-          "disableModeratorIndicator":
-              !widget.isTeacher, // ซ่อน moderator indicator สำหรับ Learner
-          "hideConferenceSubject": false, // แสดงชื่อคลาสเสมอ
-          "hideConferenceTimer": false, // แสดงเวลาเสมอ
-          // Disable invite functions for Learner
+          "disableRemoteMute": !widget.isTeacher,
+          "disableModeratorIndicator": !widget.isTeacher,
+          "hideConferenceSubject": false,
+          "hideConferenceTimer": false,
           "disableInviteFunctions": !widget.isTeacher,
-
-          // Only Teacher can end meeting for everyone
-          "enableClosePage": widget.isTeacher, // Teacher สามารถปิดห้องได้
+          "enableClosePage": widget.isTeacher,
         },
         featureFlags: {
-          // Enable ALL feature flags for full Jitsi experience
-          // Role-based permissions: Teacher has full control, Learner is restricted
-
-          // People & Participants
-          FeatureFlags.addPeopleEnabled:
-              widget.isTeacher, // เชิญคนเข้าห้อง (Teacher only)
-          FeatureFlags.inviteEnabled:
-              widget.isTeacher, // ส่งคำเชิญ (Teacher only)
-          FeatureFlags.kickOutEnabled:
-              widget.isTeacher, // เตะคนออกจากห้อง (Teacher only)
-          // Video & Audio Quality
+          FeatureFlags.addPeopleEnabled: widget.isTeacher,
+          FeatureFlags.inviteEnabled: widget.isTeacher,
+          FeatureFlags.kickOutEnabled: widget.isTeacher,
           FeatureFlags.resolution: FeatureFlagVideoResolutions.resolution720p,
           FeatureFlags.audioFocusDisabled: false,
           FeatureFlags.audioMuteButtonEnabled: true,
           FeatureFlags.audioOnlyButtonEnabled: true,
           FeatureFlags.videoMuteEnabled: true,
           FeatureFlags.fullScreenEnabled: true,
-
-          // Screen Sharing
           FeatureFlags.androidScreenSharingEnabled: true,
           FeatureFlags.iosScreenSharingEnabled: true,
           FeatureFlags.videoShareEnabled: true,
           FeatureFlags.pipEnabled: true,
           FeatureFlags.pipWhileScreenSharingEnabled: true,
-
-          // Communication Features (Available to all)
           FeatureFlags.chatEnabled: true,
           FeatureFlags.raiseHandEnabled: true,
           FeatureFlags.reactionsEnabled: true,
           FeatureFlags.closeCaptionsEnabled: true,
-
-          // Recording & Streaming (Teacher only - Full control)
           FeatureFlags.recordingEnabled: widget.isTeacher,
           FeatureFlags.iosRecordingEnabled: widget.isTeacher,
           FeatureFlags.liveStreamingEnabled: widget.isTeacher,
-
-          // UI & Layout
           FeatureFlags.filmstripEnabled: true,
           FeatureFlags.tileViewEnabled: true,
           FeatureFlags.toolboxEnabled: true,
           FeatureFlags.toolboxAlwaysVisible: false,
           FeatureFlags.overflowMenuEnabled: true,
-
-          // Settings & Info
           FeatureFlags.settingsEnabled: true,
           FeatureFlags.helpButtonEnabled: true,
           FeatureFlags.speakerStatsEnabled: true,
           FeatureFlags.conferenceTimerEnabled: true,
           FeatureFlags.meetingNameEnabled: true,
-
-          // Calendar & Integration
           FeatureFlags.calenderEnabled: true,
           FeatureFlags.callIntegrationEnabled: true,
           FeatureFlags.carModeEnabled: true,
-
-          // Security & Admin (Teacher only - Full control)
-          FeatureFlags.securityOptionEnabled:
-              widget.isTeacher, // Security menu (Teacher only)
-          FeatureFlags.lobbyModeEnabled: false, // ไม่ใช้ lobby mode
-          FeatureFlags.meetingPasswordEnabled: false, // ไม่ใช้รหัสผ่าน
-          FeatureFlags.replaceParticipant:
-              widget.isTeacher, // แทนที่ participant (Teacher only)
-          // Pre-join & Welcome
+          FeatureFlags.securityOptionEnabled: widget.isTeacher,
+          FeatureFlags.lobbyModeEnabled: false,
+          FeatureFlags.meetingPasswordEnabled: false,
+          FeatureFlags.replaceParticipant: widget.isTeacher,
           FeatureFlags.welcomePageEnabled: false,
           FeatureFlags.preJoinPageEnabled: false,
           FeatureFlags.preJoinPageHideDisplayName: false,
           FeatureFlags.unsafeRoomWarningEnabled: false,
-
-          // Notifications
           FeatureFlags.notificationEnabled: true,
-
-          // Server Settings
-          FeatureFlags.serverUrlChangeEnabled: false, // ไม่ให้เปลี่ยน server
+          FeatureFlags.serverUrlChangeEnabled: false,
         },
         userInfo: JitsiMeetUserInfo(
           displayName: _userName!,
@@ -998,7 +560,6 @@ class _LearnPageState extends State<LearnPage>
         ),
       );
 
-      // Join conference with event listener
       await _jitsiMeet.join(options, _eventListener);
 
       debugPrint('🚀 Joined Jitsi conference successfully');
@@ -1006,13 +567,6 @@ class _LearnPageState extends State<LearnPage>
       debugPrint('📧 Email: $_userEmail');
       debugPrint('🎬 Room: ${meetingConfig.roomName}');
       debugPrint('🌐 Server: ${meetingConfig.serverUrl}');
-
-      if (!widget.isTeacher && !_learnerReady) {
-        setState(() {
-          _learnerReady = true;
-        });
-        unawaited(_persistLearnerReady(true));
-      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -1064,9 +618,8 @@ class _LearnPageState extends State<LearnPage>
     );
   }
 
-  // Leave Conference
   Future<void> _leaveConference() async {
-    if (!widget.isTeacher && !_canLearnerLeave()) {
+    if (!widget.isTeacher && _classFinish != null && DateTime.now().isBefore(_classFinish!)) {
       _showErrorDialog('คลาสยังไม่จบ ไม่สามารถออกก่อนเวลาได้');
       return;
     }
@@ -1085,7 +638,6 @@ class _LearnPageState extends State<LearnPage>
     }
   }
 
-  // Utility Methods
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final hours = twoDigits(duration.inHours);
@@ -1152,7 +704,7 @@ class _LearnPageState extends State<LearnPage>
               ),
             ),
             child: const Text(
-              'ตลกด้วย',
+              'ตกลง',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
@@ -1231,16 +783,12 @@ class _LearnPageState extends State<LearnPage>
   void dispose() {
     _animationController.dispose();
     _sessionTimer?.cancel();
-    _countdownTimer?.cancel();
-    _broadcastTimer?.cancel();
     _copyResetTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // When in conference, Jitsi SDK takes over the entire screen
-    // We only show pre-join and loading screens
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -1277,7 +825,6 @@ class _LearnPageState extends State<LearnPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Animated Loading Circle
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
@@ -1363,7 +910,7 @@ class _LearnPageState extends State<LearnPage>
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Animated Header Card
+                // Header Card
                 Container(
                   padding: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
@@ -1380,7 +927,6 @@ class _LearnPageState extends State<LearnPage>
                   ),
                   child: Column(
                     children: [
-                      // Animated Icon
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -1409,8 +955,6 @@ class _LearnPageState extends State<LearnPage>
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Class Name
                       Text(
                         widget.className,
                         style: Theme.of(context).textTheme.headlineSmall
@@ -1422,8 +966,6 @@ class _LearnPageState extends State<LearnPage>
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
-
-                      // Teacher Name
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -1444,8 +986,6 @@ class _LearnPageState extends State<LearnPage>
                         ],
                       ),
                       const SizedBox(height: 20),
-
-                      // Role Badge
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
@@ -1501,16 +1041,7 @@ class _LearnPageState extends State<LearnPage>
                 _buildUserInfoCard(),
                 const SizedBox(height: 24),
 
-                if (_buildCountdownCard() != null) ...[
-                  _buildCountdownCard()!,
-                  const SizedBox(height: 20),
-                ],
-
-                widget.isTeacher
-                    ? _buildTeacherReadyCard()
-                    : _buildLearnerReadyCard(),
-                const SizedBox(height: 24),
-
+                // Meeting Link Card
                 _buildMeetingLinkCard(roomUrl),
                 const SizedBox(height: 32),
 
@@ -1548,17 +1079,17 @@ class _LearnPageState extends State<LearnPage>
                     ),
                   ),
 
-                // Join Button - Big and Beautiful
+                // Join Button
                 _buildJoinButtonSection(),
                 const SizedBox(height: 16),
 
-                // Report Button - Optional for teachers
+                // Report Button (Teachers only)
                 if (widget.isTeacher) ...[
                   _buildReportButton(),
                   const SizedBox(height: 8),
                 ],
 
-                // Back Button - Subtle
+                // Back Button
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(
@@ -1659,337 +1190,6 @@ class _LearnPageState extends State<LearnPage>
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget? _buildCountdownCard() {
-    if (_classStart == null) return null;
-    final statusText = (_timeUntilStart != null && _timeUntilStart!.isNegative)
-        ? 'คลาสเริ่มไปแล้ว'
-        : 'เริ่มใน';
-    final bool isUrgent =
-        _timeUntilStart != null && _timeUntilStart!.inMinutes <= 5;
-    final material = isUrgent ? Colors.orange : Colors.blue;
-    final Color accentTone = material.shade400;
-    final Color strongTone = material.shade700;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [accentTone.withValues(alpha: 0.15), Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accentTone.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: accentTone,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.timer_rounded,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  statusText,
-                  style: TextStyle(
-                    color: strongTone,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _formatCountdown(_timeUntilStart),
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: strongTone,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'เริ่มเวลา ${_formatDateTimeDisplay(_classStart)}',
-                  style: TextStyle(
-                    color: Colors.blueGrey.shade600,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTeacherReadyCard() {
-    final windowOpen = _isTeacherWindowOpen();
-    final tooLate = _isTeacherTooLateToMarkReady();
-    final canPress =
-        !_teacherReady && !_isMarkingReady && windowOpen && !tooLate;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.purple.shade50,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.school_rounded,
-                  size: 22,
-                  color: Colors.purple.shade500,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'เตรียมคลาสให้พร้อม',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: Colors.purple.shade600,
-                ),
-              ),
-              const Spacer(),
-              Chip(
-                backgroundColor: _teacherReady
-                    ? Colors.green.shade100
-                    : Colors.grey.shade200,
-                labelPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 0,
-                ),
-                avatar: Icon(
-                  _teacherReady ? Icons.check_circle : Icons.hourglass_top,
-                  size: 18,
-                  color: _teacherReady
-                      ? Colors.green.shade700
-                      : Colors.grey.shade600,
-                ),
-                label: Text(
-                  _teacherReady ? 'พร้อมแล้ว' : 'ยังไม่พร้อม',
-                  style: TextStyle(
-                    color: _teacherReady
-                        ? Colors.green.shade700
-                        : Colors.grey.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'กดปุ่ม "พร้อมสอน" อย่างน้อย 10 นาทีก่อนเริ่มห้อง เพื่อให้ผู้เรียนรับทราบและเตรียมตัวเข้าชั้นเรียน',
-            style: TextStyle(
-              color: Colors.blueGrey.shade600,
-              fontSize: 13,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: canPress ? _handleTeacherReady : null,
-              icon: _isMarkingReady
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.rocket_launch_rounded),
-              label: Text(
-                _teacherReady ? 'พร้อมสอนแล้ว' : 'กดพร้อมสอน',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _teacherReady
-                    ? Colors.green.shade500
-                    : Colors.purple.shade500,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (!windowOpen && !_teacherReady)
-            Text(
-              'กดได้ตั้งแต่ ${_classStart != null ? _formatDateTimeDisplay(_classStart!.subtract(const Duration(minutes: 10))) : '-'}',
-              style: TextStyle(color: Colors.red.shade400, fontSize: 12),
-            ),
-          if (tooLate && !_teacherReady)
-            Text(
-              'เลยเวลาเริ่มคลาสเกิน 10 นาทีแล้ว โปรดรีบกดพร้อมและเข้าห้อง',
-              style: TextStyle(color: Colors.orange.shade600, fontSize: 12),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLearnerReadyCard() {
-    final canPress = !_learnerReady && !_isMarkingLearnerReady && _teacherReady;
-    final windowOpen = _isLearnerReadyWindowOpen();
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.self_improvement_rounded,
-                  size: 22,
-                  color: Colors.blue.shade500,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'เตรียมตัวก่อนเข้าเรียน',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: Colors.blue.shade600,
-                ),
-              ),
-              const Spacer(),
-              Chip(
-                backgroundColor: _teacherReady
-                    ? Colors.green.shade100
-                    : Colors.orange.shade100,
-                labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-                avatar: Icon(
-                  _teacherReady ? Icons.check_circle : Icons.access_time,
-                  size: 18,
-                  color: _teacherReady
-                      ? Colors.green.shade700
-                      : Colors.orange.shade700,
-                ),
-                label: Text(
-                  _teacherReady ? 'ครูพร้อมแล้ว' : 'รอผู้สอน',
-                  style: TextStyle(
-                    color: _teacherReady
-                        ? Colors.green.shade700
-                        : Colors.orange.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'กดปุ่ม "ฉันพร้อมเรียน" ก่อนเริ่ม 5 นาที เพื่อให้ระบบเตรียมห้องเรียนและล็อกอินชื่อของคุณให้ตรงกับแอป',
-            style: TextStyle(
-              color: Colors.blueGrey.shade600,
-              fontSize: 13,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: (canPress && windowOpen) ? _handleLearnerReady : null,
-              icon: _isMarkingLearnerReady
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.emoji_emotions_rounded),
-              label: Text(
-                _learnerReady ? 'พร้อมเรียนแล้ว' : 'ฉันพร้อมเรียน',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _learnerReady
-                    ? Colors.green.shade500
-                    : Colors.blue.shade500,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'สายเท่าไรก็ได้ แต่ถ้าออกก่อนจบคลาส ระบบจะพากลับเข้าห้องเรียนอัตโนมัติ',
-            style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 12),
-          ),
-          if (!windowOpen && !_learnerReady)
-            Text(
-              'กดได้เมื่อถึงช่วง 5 นาทีก่อนเริ่มคลาส',
-              style: TextStyle(color: Colors.orange.shade600, fontSize: 12),
-            ),
-          if (_learnerReady)
-            Text(
-              'เยี่ยม! กดปุ่มเข้าห้องเมื่อพร้อมได้เลย',
-              style: TextStyle(color: Colors.green.shade600, fontSize: 12),
-            ),
         ],
       ),
     );
@@ -2156,7 +1356,7 @@ class _LearnPageState extends State<LearnPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'แชร์หรือเปิดผ่านเบราว์เซอร์ได้โดยคัดลอกอัตโนมัติทั้งบนมือถือและเว็บ',
+                      'แชร์หรือเปิดผ่านเบราว์เซอร์ได้',
                       style: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 13,
@@ -2256,14 +1456,14 @@ class _LearnPageState extends State<LearnPage>
               padding: const EdgeInsets.only(top: 10),
               child: Text(
                 _hasCopiedLink
-                    ? 'คัดลอกสำเร็จ! วางลิงก์นี้บนเบราว์เซอร์หรือส่งให้เพื่อนได้เลย'
-                    : 'แตะที่กล่องลิงก์หรือปุ่มคัดลอก ระบบจะบันทึกลงคลิปบอร์ดให้อัตโนมัติ',
+                    ? 'คัดลอกสำเร็จ! วางลิงก์นี้บนเบราว์เซอร์ได้เลย'
+                    : 'แตะที่กล่องลิงก์หรือปุ่มคัดลอก ระบบจะบันทึกลงคลิปบอร์ด',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
               ),
             ),
           if (!hasLink)
             Text(
-              'ยังไม่มีลิงก์จากระบบ โปรดตรวจสอบกับผู้ดูแลหรือผู้สอน',
+              'ยังไม่มีลิงก์จากระบบ โปรดตรวจสอบกับผู้ดูแล',
               style: TextStyle(
                 color: Colors.red.shade400,
                 fontWeight: FontWeight.w600,
@@ -2275,7 +1475,6 @@ class _LearnPageState extends State<LearnPage>
     );
   }
 
-  // Simple in-conference view - Jitsi SDK takes over the screen
   Widget _buildInConferenceView() {
     return Container(
       decoration: BoxDecoration(
@@ -2289,7 +1488,6 @@ class _LearnPageState extends State<LearnPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Success Icon
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
@@ -2310,8 +1508,6 @@ class _LearnPageState extends State<LearnPage>
               ),
             ),
             const SizedBox(height: 32),
-
-            // Conference Active Message
             Text(
               'กำลังอยู่ในห้องเรียน',
               style: TextStyle(
@@ -2327,8 +1523,6 @@ class _LearnPageState extends State<LearnPage>
               ),
             ),
             const SizedBox(height: 12),
-
-            // Class Info
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
@@ -2346,8 +1540,6 @@ class _LearnPageState extends State<LearnPage>
               ),
             ),
             const SizedBox(height: 24),
-
-            // Session Info
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -2363,8 +1555,6 @@ class _LearnPageState extends State<LearnPage>
               ],
             ),
             const SizedBox(height: 48),
-
-            // Info Text
             Text(
               'Jitsi Meet กำลังทำงานในหน้าต่างแยก',
               style: TextStyle(
@@ -2382,8 +1572,6 @@ class _LearnPageState extends State<LearnPage>
               ),
             ),
             const SizedBox(height: 48),
-
-            // Leave Button
             ElevatedButton.icon(
               onPressed: _leaveConference,
               style: ElevatedButton.styleFrom(
