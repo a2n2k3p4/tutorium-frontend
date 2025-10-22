@@ -4,6 +4,7 @@ import 'package:tutorium_frontend/models/models.dart';
 import 'package:tutorium_frontend/pages/home/teacher/create_session_page.dart';
 import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
 import 'package:tutorium_frontend/util/class_cache_manager.dart';
+import 'package:tutorium_frontend/pages/learn/learn.dart';
 
 class MyClassesPage extends StatefulWidget {
   final int teacherId;
@@ -40,6 +41,65 @@ class _MyClassesPageState extends State<MyClassesPage> {
     super.dispose();
   }
 
+  // ---------- Helper functions for deduping and filtering enrollments ----------
+
+  /// Dedupe enrollments by student_id or user.id to prevent duplicates
+  List<Map<String, dynamic>> _dedupeEnrollments(
+    List<Map<String, dynamic>> raw,
+  ) {
+    final seen = <dynamic>{};
+    final out = <Map<String, dynamic>>[];
+
+    for (final e in raw) {
+      final user = e['user'] as Map<String, dynamic>?;
+      // Use student_id if available, fallback to user id or enrollment id
+      final key = user != null
+          ? (user['student_id'] ?? user['id'])
+          : e['id'];
+      if (key == null) continue; // Skip if no key found
+      if (seen.add(key)) {
+        out.add(e);
+      } else {
+        // Duplicate found - log if needed
+        debugPrint('⚠️ Duplicate enrollment for key: $key');
+      }
+    }
+
+    return out;
+  }
+
+  /// Filter enrollments to only pending statuses
+  List<Map<String, dynamic>> _filterPending(
+    List<Map<String, dynamic>> list,
+  ) {
+    final pendingStatuses = {'pending', 'waiting'};
+    return list.where((e) {
+      final status = (e['enrollment_status'] ?? '').toString().toLowerCase();
+      return pendingStatuses.contains(status);
+    }).toList();
+  }
+
+  /// Check if user is a student (not teacher or other roles)
+  bool _isStudentUser(Map<String, dynamic>? user) {
+    if (user == null) return false;
+    final role = (user['role'] ?? '').toString().toLowerCase();
+    final isStudentFlag = user['is_student'] == true;
+    // Accept if role is 'student' or 'learner', or is_student flag is true
+    return role == 'student' || role == 'learner' || isStudentFlag;
+  }
+
+  /// Filter to only confirmed student enrollments (exclude teachers/non-students)
+  List<Map<String, dynamic>> _confirmedStudentEnrollments(
+    List<Map<String, dynamic>> raw,
+  ) {
+    final goodStatuses = {'enrolled', 'confirmed', 'active'};
+    return raw.where((e) {
+      final user = e['user'] as Map<String, dynamic>?;
+      final status = (e['enrollment_status'] ?? '').toString().toLowerCase();
+      return goodStatuses.contains(status) && _isStudentUser(user);
+    }).toList();
+  }
+
   Future<void> _loadData({bool isBackgroundRefresh = false}) async {
     if (!isBackgroundRefresh && mounted) {
       setState(() {
@@ -67,32 +127,26 @@ class _MyClassesPageState extends State<MyClassesPage> {
           )
           .toList();
 
-      // 2. ดึง Sessions และ Enrollments แบบ parallel
-      final sessionsFutures = classes.map((classItem) async {
-        final sessions = await ClassSessionService.getSessionsByClass(
-          classItem.id,
-        );
-        return MapEntry(classItem.id, sessions);
-      });
+      // 2. ดึง Sessions ทั้งหมดในครั้งเดียว (BATCH)
+      final classIds = classes.map((c) => c.id).toList();
+      final sessions = await ClassSessionService.getSessionsByClasses(classIds);
 
-      final sessionsResults = await Future.wait(sessionsFutures);
-      final sessions = Map.fromEntries(sessionsResults);
-
-      // 3. ดึง Enrollments ของทุก Session แบบ parallel
+      // 3. ดึง Enrollments ทั้งหมดในครั้งเดียว (BATCH)
       final allSessionIds = sessions.values
           .expand((s) => s)
           .map((s) => s.id)
           .toList();
 
-      final enrollmentsFutures = allSessionIds.map((sessionId) async {
-        final enrollments = await ClassSessionService.getEnrollmentsBySession(
-          sessionId,
-        );
-        return MapEntry(sessionId, enrollments);
-      });
+      final enrollments = await ClassSessionService.getEnrollmentsBySessions(
+        allSessionIds,
+      );
 
-      final enrollmentsResults = await Future.wait(enrollmentsFutures);
-      final enrollments = Map.fromEntries(enrollmentsResults);
+      // Dedupe enrollments by student_id or user.id
+      final dedupedEnrollments = <int, List<Map<String, dynamic>>>{};
+      enrollments.forEach((sessionId, rawList) {
+        final unique = _dedupeEnrollments(rawList);
+        dedupedEnrollments[sessionId] = unique;
+      });
 
       final updatedSelection = <int, int?>{};
       for (final classItem in classes) {
@@ -110,7 +164,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
         setState(() {
           _classes = classes;
           _classSessions = sessions;
-          _sessionEnrollments = enrollments;
+          _sessionEnrollments = dedupedEnrollments; // Use deduped data
           _selectedSessionByClass
             ..clear()
             ..addAll(updatedSelection);
@@ -290,7 +344,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
           else ...[
             _buildSessionSelector(classItem, sessions, selectedSessionId),
             const SizedBox(height: 12),
-            ..._buildSessionsList(displaySessions),
+            ..._buildSessionsList(classItem, displaySessions),
           ],
         ],
       ),
@@ -439,11 +493,24 @@ class _MyClassesPageState extends State<MyClassesPage> {
     );
   }
 
-  List<Widget> _buildSessionsList(List<ClassSession> sessions) {
+  List<Widget> _buildSessionsList(
+    ClassModel classItem,
+    List<ClassSession> sessions,
+  ) {
     return sessions.map((session) {
-      final enrollments = _sessionEnrollments[session.id] ?? [];
-      final enrolledCount = enrollments.length;
-      final progressPercent = enrolledCount / session.learnerLimit;
+      final rawEnrollments = _sessionEnrollments[session.id] ?? [];
+
+      // Filter only confirmed STUDENT enrollments (exclude teachers/non-students)
+      final confirmed = _confirmedStudentEnrollments(rawEnrollments);
+      final enrolledCount = confirmed.length;
+
+      // Get pending enrollments separately
+      final pending = _filterPending(rawEnrollments);
+
+      // Prevent division by zero and clamp progress to 0.0-1.0
+      final learnerLimit = session.learnerLimit <= 0 ? 1 : session.learnerLimit;
+      var progressPercent = enrolledCount / learnerLimit;
+      progressPercent = progressPercent.clamp(0.0, 1.0);
 
       return Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -573,14 +640,36 @@ class _MyClassesPageState extends State<MyClassesPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
 
-            // Enrolled Students
-            if (enrollments.isNotEmpty) ...[
+            // Join Classroom Button (no time check)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.video_call, size: 20),
+                label: const Text('เข้าห้องเรียนทันที'),
+                onPressed: () => _joinNow(classItem, session),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+
+            // Enrolled Students (Confirmed)
+            if (confirmed.isNotEmpty) ...[
               const SizedBox(height: 12),
               const Divider(),
               const SizedBox(height: 8),
               Text(
-                'Enrolled Students',
+                'Enrolled Students (${confirmed.length})',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -588,7 +677,24 @@ class _MyClassesPageState extends State<MyClassesPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              ..._buildEnrolledStudents(enrollments),
+              ..._buildEnrolledStudents(confirmed),
+            ],
+
+            // Pending Students (if any)
+            if (pending.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'Pending Registrations (${pending.length})',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              ..._buildPendingStudents(pending),
             ],
           ],
         ),
@@ -674,7 +780,14 @@ class _MyClassesPageState extends State<MyClassesPage> {
 
   List<Widget> _buildEnrolledStudents(List<Map<String, dynamic>> enrollments) {
     return enrollments.map((enrollment) {
-      final user = enrollment['user'];
+      final user = enrollment['user'] as Map<String, dynamic>?;
+
+      // Handle null or missing user data safely
+      final firstName = (user?['first_name'] ?? 'Unknown').toString();
+      final lastName = (user?['last_name'] ?? '').toString();
+      final studentId = (user?['student_id'] ?? '—').toString();
+      final initial = firstName.isNotEmpty ? firstName[0].toUpperCase() : '?';
+      final status = enrollment['enrollment_status']?.toString() ?? 'unknown';
 
       return Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -690,7 +803,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
               radius: 20,
               backgroundColor: Colors.blue[100],
               child: Text(
-                user['first_name'][0].toUpperCase(),
+                initial,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.blue[700],
@@ -703,14 +816,14 @@ class _MyClassesPageState extends State<MyClassesPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${user['first_name']} ${user['last_name']}',
+                    '$firstName $lastName',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
-                    'Student ID: ${user['student_id']}',
+                    'Student ID: $studentId',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
@@ -723,11 +836,83 @@ class _MyClassesPageState extends State<MyClassesPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                enrollment['enrollment_status'],
+                status,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: Colors.green[700],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  List<Widget> _buildPendingStudents(List<Map<String, dynamic>> enrollments) {
+    return enrollments.map((enrollment) {
+      final user = enrollment['user'] as Map<String, dynamic>?;
+
+      // Handle null or missing user data safely
+      final firstName = (user?['first_name'] ?? 'Unknown').toString();
+      final lastName = (user?['last_name'] ?? '').toString();
+      final studentId = (user?['student_id'] ?? '—').toString();
+      final initial = firstName.isNotEmpty ? firstName[0].toUpperCase() : '?';
+      final status = enrollment['enrollment_status']?.toString() ?? 'pending';
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange[50],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange[200]!),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.orange[100],
+              child: Text(
+                initial,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange[700],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$firstName $lastName',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    'Student ID: $studentId',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.orange[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange[700],
                 ),
               ),
             ),
@@ -757,5 +942,62 @@ class _MyClassesPageState extends State<MyClassesPage> {
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
     return '${hours}h ${minutes}m';
+  }
+
+  /// Join classroom immediately (no time check)
+  Future<void> _joinNow(ClassModel classItem, ClassSession session) async {
+    try {
+      // Get Jitsi URL from session (already created by backend)
+      final jitsiUrl = session.classUrl;
+
+      if (jitsiUrl == null || jitsiUrl.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ยังไม่พบลิงก์ห้องเรียน (Jitsi URL)'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Get teacher name (simple approach - can be improved)
+      String teacherName = 'Teacher';
+      try {
+        // Fetch from cache or use default
+        final classInfo = await ClassSessionService().fetchClassInfo(
+          classItem.id,
+        );
+        teacherName = classInfo.teacherName;
+      } catch (e) {
+        debugPrint('⚠️ Could not fetch teacher name: $e');
+      }
+
+      // Set role: teacher or not
+      final isTeacher = widget.teacherId == classItem.teacherId;
+
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LearnPage(
+            classSessionId: session.id,
+            className: classItem.className,
+            teacherName: teacherName,
+            jitsiMeetingUrl: jitsiUrl,
+            isTeacher: isTeacher,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Join classroom failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เข้าเรียนไม่สำเร็จ: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

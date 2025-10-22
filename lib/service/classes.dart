@@ -163,31 +163,15 @@ class ClassInfo {
     int teacherId, {
     String? teacherName,
   }) async {
+    // Simply fetch classes filtered by teacherId from backend
+    // Backend should return correct teacherId in the response
     final classes = await fetchAll(teacherId: teacherId);
-    final resolved = <int, ClassInfo>{};
 
-    final needsHydration = classes
-        .where((cls) => cls.teacherId == 0)
-        .map((cls) => cls.id)
-        .toList();
-
-    if (needsHydration.isNotEmpty) {
-      for (final classId in needsHydration) {
-        try {
-          final detail = await fetchById(classId);
-          resolved[classId] = detail;
-        } catch (_) {
-          // Leave class unresolved; fallback to original data.
-        }
-      }
-    }
-
+    // Optional: Fill in missing teacherId if teacherName matches
     return classes
         .map(
           (cls) => cls.teacherId != 0
               ? cls
-              : resolved[cls.id] != null
-              ? resolved[cls.id]!
               : (teacherName != null &&
                     cls.teacherName?.toLowerCase().trim() ==
                         teacherName.toLowerCase().trim())

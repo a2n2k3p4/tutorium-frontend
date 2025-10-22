@@ -197,12 +197,103 @@ class ClassSessionService {
     return ClassSessionService().fetchClassSessions(classId);
   }
 
+  /// Fetch sessions for multiple classes at once (batch)
+  static Future<Map<int, List<models.ClassSession>>> getSessionsByClasses(
+    List<int> classIds,
+  ) async {
+    if (classIds.isEmpty) return {};
+
+    // Request all sessions for multiple classes in ONE request
+    final url = Uri.parse(
+      '${_resolveBaseUrl()}/class_sessions',
+    ).replace(queryParameters: {
+      'class_ids': classIds.join(','), // e.g., "1,2,3,4"
+    });
+    final headers = await _authHeaders();
+
+    final response = await _sendWithTimeout(
+      () => http.get(url, headers: headers.isEmpty ? null : headers),
+      url,
+      'GET',
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final allSessions = _decodeSessionsPayload(data);
+
+      // Group sessions by class_id
+      final grouped = <int, List<models.ClassSession>>{};
+      for (final classId in classIds) {
+        grouped[classId] = [];
+      }
+
+      for (final session in allSessions) {
+        if (grouped.containsKey(session.classId)) {
+          grouped[session.classId]!.add(session);
+        }
+      }
+
+      return grouped;
+    } else {
+      throw Exception('Failed to load sessions for classes: $classIds');
+    }
+  }
+
+  /// Fetch enrollments for multiple sessions at once (batch)
+  static Future<Map<int, List<Map<String, dynamic>>>> getEnrollmentsBySessions(
+    List<int> sessionIds,
+  ) async {
+    if (sessionIds.isEmpty) return {};
+
+    // Request all enrollments for multiple sessions in ONE request
+    final url = Uri.parse(
+      '${_resolveBaseUrl()}/enrollments',
+    ).replace(queryParameters: {
+      'session_ids': sessionIds.join(','), // e.g., "1,2,3,4"
+      'include': 'learner,user',
+    });
+    final headers = await _authHeaders();
+
+    final response = await _sendWithTimeout(
+      () => http.get(url, headers: headers.isEmpty ? null : headers),
+      url,
+      'GET',
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> allEnrollments = json.decode(response.body);
+
+      // Group enrollments by class_session_id
+      final grouped = <int, List<Map<String, dynamic>>>{};
+      for (final sessionId in sessionIds) {
+        grouped[sessionId] = [];
+      }
+
+      for (final enrollment in allEnrollments) {
+        if (enrollment is! Map<String, dynamic>) continue;
+
+        final sessionId = enrollment['class_session_id'];
+        if (sessionId != null && grouped.containsKey(sessionId)) {
+          grouped[sessionId]!.add(enrollment);
+        }
+      }
+
+      return grouped;
+    } else {
+      throw Exception('Failed to load enrollments for sessions: $sessionIds');
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getEnrollmentsBySession(
     int sessionId,
   ) async {
+    // Request with ?include=learner,user to get all data in ONE request
     final url = Uri.parse(
       '${_resolveBaseUrl()}/enrollments',
-    ).replace(queryParameters: {'class_session_id': sessionId.toString()});
+    ).replace(queryParameters: {
+      'class_session_id': sessionId.toString(),
+      'include': 'learner,user', // Ask backend to include related data
+    });
     final headers = await _authHeaders();
 
     final response = await _sendWithTimeout(
@@ -214,54 +305,11 @@ class ClassSessionService {
     if (response.statusCode == 200) {
       final List<dynamic> enrollments = json.decode(response.body);
 
-      final List<Map<String, dynamic>> enrichedEnrollments = [];
-      for (final enrollment in enrollments) {
-        if (enrollment is! Map<String, dynamic>) {
-          continue;
-        }
-
-        final learnerId = enrollment['learner_id'];
-        if (learnerId == null) {
-          continue;
-        }
-
-        final learnerUrl = Uri.parse(
-          '${_resolveBaseUrl()}/learners/$learnerId',
-        );
-        final learnerResponse = await _sendWithTimeout(
-          () => http.get(learnerUrl, headers: headers.isEmpty ? null : headers),
-          learnerUrl,
-          'GET',
-        );
-
-        if (learnerResponse.statusCode == 200) {
-          final learner = json.decode(learnerResponse.body);
-          final userId = learner['user_id'];
-
-          if (userId == null) {
-            enrichedEnrollments.add({...enrollment, 'learner': learner});
-            continue;
-          }
-
-          final userUrl = Uri.parse('${_resolveBaseUrl()}/users/$userId');
-          final userResponse = await _sendWithTimeout(
-            () => http.get(userUrl, headers: headers.isEmpty ? null : headers),
-            userUrl,
-            'GET',
-          );
-
-          if (userResponse.statusCode == 200) {
-            final user = json.decode(userResponse.body);
-            enrichedEnrollments.add({
-              ...enrollment,
-              'learner': learner,
-              'user': user,
-            });
-          }
-        }
-      }
-
-      return enrichedEnrollments;
+      // Backend should return enrollments with learner and user already populated
+      // No need for N+1 queries!
+      return enrollments
+          .whereType<Map<String, dynamic>>()
+          .toList();
     } else {
       throw Exception('Failed to load enrollments for session $sessionId');
     }
@@ -273,7 +321,7 @@ class ClassSessionService {
     final url = Uri.parse('${_resolveBaseUrl()}/class_sessions');
 
     final requestBody = json.encode(sessionData);
-    debugPrint('📤 Sending POST to: $url');
+    debugPrint('�� Sending POST to: $url');
     debugPrint('📤 Request body: $requestBody');
 
     final headers = await _authHeaders(json: true);
@@ -308,6 +356,48 @@ class ClassSessionService {
       }
       throw Exception(
         'Failed to create session (${response.statusCode}): $errorMsg',
+      );
+    }
+  }
+
+  /// Delete an enrollment from a session
+  static Future<void> deleteEnrollment(
+    int sessionId,
+    dynamic enrollmentId,
+  ) async {
+    final url = Uri.parse(
+      '${_resolveBaseUrl()}/enrollments/$enrollmentId',
+    );
+
+    debugPrint('📤 Sending DELETE to: $url');
+
+    final headers = await _authHeaders();
+
+    final response = await _sendWithTimeout(
+      () => http.delete(url, headers: headers.isEmpty ? null : headers),
+      url,
+      'DELETE',
+    );
+
+    debugPrint('📥 Response status: ${response.statusCode}');
+    debugPrint('📥 Response body: ${response.body}');
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      // Successfully deleted
+      return;
+    } else {
+      // Parse error message from response if available
+      String errorMsg = 'Failed to delete enrollment';
+      try {
+        final errorData = json.decode(response.body);
+        if (errorData is Map<String, dynamic>) {
+          errorMsg = errorData['error'] ?? errorData['message'] ?? errorMsg;
+        }
+      } catch (e) {
+        errorMsg = response.body;
+      }
+      throw Exception(
+        'Failed to delete enrollment (${response.statusCode}): $errorMsg',
       );
     }
   }
