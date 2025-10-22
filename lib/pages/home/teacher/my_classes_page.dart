@@ -53,9 +53,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
     for (final e in raw) {
       final user = e['user'] as Map<String, dynamic>?;
       // Use student_id if available, fallback to user id or enrollment id
-      final key = user != null
-          ? (user['student_id'] ?? user['id'])
-          : e['id'];
+      final key = user != null ? (user['student_id'] ?? user['id']) : e['id'];
       if (key == null) continue; // Skip if no key found
       if (seen.add(key)) {
         out.add(e);
@@ -69,9 +67,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
   }
 
   /// Filter enrollments to only pending statuses
-  List<Map<String, dynamic>> _filterPending(
-    List<Map<String, dynamic>> list,
-  ) {
+  List<Map<String, dynamic>> _filterPending(List<Map<String, dynamic>> list) {
     final pendingStatuses = {'pending', 'waiting'};
     return list.where((e) {
       final status = (e['enrollment_status'] ?? '').toString().toLowerCase();

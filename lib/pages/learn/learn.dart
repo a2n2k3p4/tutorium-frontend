@@ -619,7 +619,9 @@ class _LearnPageState extends State<LearnPage>
   }
 
   Future<void> _leaveConference() async {
-    if (!widget.isTeacher && _classFinish != null && DateTime.now().isBefore(_classFinish!)) {
+    if (!widget.isTeacher &&
+        _classFinish != null &&
+        DateTime.now().isBefore(_classFinish!)) {
       _showErrorDialog('คลาสยังไม่จบ ไม่สามารถออกก่อนเวลาได้');
       return;
     }

@@ -204,11 +204,11 @@ class ClassSessionService {
     if (classIds.isEmpty) return {};
 
     // Request all sessions for multiple classes in ONE request
-    final url = Uri.parse(
-      '${_resolveBaseUrl()}/class_sessions',
-    ).replace(queryParameters: {
-      'class_ids': classIds.join(','), // e.g., "1,2,3,4"
-    });
+    final url = Uri.parse('${_resolveBaseUrl()}/class_sessions').replace(
+      queryParameters: {
+        'class_ids': classIds.join(','), // e.g., "1,2,3,4"
+      },
+    );
     final headers = await _authHeaders();
 
     final response = await _sendWithTimeout(
@@ -246,12 +246,12 @@ class ClassSessionService {
     if (sessionIds.isEmpty) return {};
 
     // Request all enrollments for multiple sessions in ONE request
-    final url = Uri.parse(
-      '${_resolveBaseUrl()}/enrollments',
-    ).replace(queryParameters: {
-      'session_ids': sessionIds.join(','), // e.g., "1,2,3,4"
-      'include': 'learner,user',
-    });
+    final url = Uri.parse('${_resolveBaseUrl()}/enrollments').replace(
+      queryParameters: {
+        'session_ids': sessionIds.join(','), // e.g., "1,2,3,4"
+        'include': 'learner,user',
+      },
+    );
     final headers = await _authHeaders();
 
     final response = await _sendWithTimeout(
@@ -288,12 +288,12 @@ class ClassSessionService {
     int sessionId,
   ) async {
     // Request with ?include=learner,user to get all data in ONE request
-    final url = Uri.parse(
-      '${_resolveBaseUrl()}/enrollments',
-    ).replace(queryParameters: {
-      'class_session_id': sessionId.toString(),
-      'include': 'learner,user', // Ask backend to include related data
-    });
+    final url = Uri.parse('${_resolveBaseUrl()}/enrollments').replace(
+      queryParameters: {
+        'class_session_id': sessionId.toString(),
+        'include': 'learner,user', // Ask backend to include related data
+      },
+    );
     final headers = await _authHeaders();
 
     final response = await _sendWithTimeout(
@@ -307,9 +307,7 @@ class ClassSessionService {
 
       // Backend should return enrollments with learner and user already populated
       // No need for N+1 queries!
-      return enrollments
-          .whereType<Map<String, dynamic>>()
-          .toList();
+      return enrollments.whereType<Map<String, dynamic>>().toList();
     } else {
       throw Exception('Failed to load enrollments for session $sessionId');
     }
@@ -365,9 +363,7 @@ class ClassSessionService {
     int sessionId,
     dynamic enrollmentId,
   ) async {
-    final url = Uri.parse(
-      '${_resolveBaseUrl()}/enrollments/$enrollmentId',
-    );
+    final url = Uri.parse('${_resolveBaseUrl()}/enrollments/$enrollmentId');
 
     debugPrint('📤 Sending DELETE to: $url');
 
