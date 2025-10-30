@@ -22,12 +22,16 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        // You can update the following values to        applicationId = "com.a2n2k3p4.tutorium.tutorium_frontend" match your application needs.
+        // You can update the following values to         applicationId = "com.a2n2k3p4.tutorium.tutorium_frontend" match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     buildTypes {
@@ -35,6 +39,16 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // ** แก้ไข: ปิดการ Optimize เพื่อให้ Jitsi SDK ทำงานได้ในโหมด Release **
+            // isMinifyEnabled = false คือการปิด R8/ProGuard (ไม่มีการย่อโค้ดหรือเปลี่ยนชื่อ)
+            isMinifyEnabled = false
+
+            // isShrinkResources = false คือการปิดการลบทรัพยากรที่ไม่ใช้
+            isShrinkResources = false
+
+            // เนื่องจากปิด MinifyEnabled แล้ว บรรทัดนี้จึงไม่มีผล แต่เก็บไว้ได้ถ้าต้องการเปิดในภายหลัง
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }

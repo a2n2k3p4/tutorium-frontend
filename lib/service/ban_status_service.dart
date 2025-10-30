@@ -192,6 +192,14 @@ class BanStatusService {
 
 /// Ban status information
 class BanStatusInfo {
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
+
+  @visibleForTesting
+  static void resetClock() {
+    clock = DateTime.now;
+  }
+
   final bool isBanned;
   final DateTime? banEnd;
   final DateTime? banStart;
@@ -212,7 +220,7 @@ class BanStatusInfo {
 
   Duration? get remainingDuration {
     if (!isBanned || banEnd == null) return null;
-    final remaining = banEnd!.difference(DateTime.now());
+    final remaining = banEnd!.difference(clock());
     return remaining.isNegative ? null : remaining;
   }
 
