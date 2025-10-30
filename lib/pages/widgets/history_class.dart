@@ -43,12 +43,22 @@ class ClassCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "$className by $teacherName",
+                    className,
                     style: const TextStyle(
                       fontSize: 16.0,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (teacherName.trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      teacherName,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Row(
                     children: [

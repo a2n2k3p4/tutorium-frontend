@@ -4,12 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
 import 'package:tutorium_frontend/pages/widgets/cached_network_image.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
-import 'package:tutorium_frontend/service/class_sessions.dart' as session_api;
 import 'package:tutorium_frontend/service/classes.dart' as class_api;
-import 'package:tutorium_frontend/service/enrollments.dart' as enrollment_api;
 import 'package:tutorium_frontend/service/teachers.dart' as teacher_api;
 import 'package:tutorium_frontend/service/users.dart' as user_api;
 import 'package:tutorium_frontend/service/rating_service.dart';
+import 'package:tutorium_frontend/util/class_enrollment_pipeline.dart';
 
 class TeacherProfilePage extends StatefulWidget {
   final int teacherId;
@@ -61,7 +60,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
       );
       _classRatings.clear();
 
-      final enrollmentCounts = await _fetchEnrollmentCounts(classes);
+      final enrollmentCounts =
+          await ClassEnrollmentPipeline.aggregateActiveEnrollments(classes);
 
       // Fetch ratings for all classes
       debugPrint('🌟 Loading ratings for ${classes.length} classes...');
@@ -190,71 +190,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   void dispose() {
     _ratingService.clearCache();
     super.dispose();
-  }
-
-  Future<Map<int, int>> _fetchEnrollmentCounts(
-    List<class_api.ClassInfo> classes,
-  ) async {
-    final classIds = classes.map((cls) => cls.id).where((id) => id > 0).toSet();
-    if (classIds.isEmpty) {
-      debugPrint('👥 Enrollment: no classes found, skip counting');
-      return {};
-    }
-
-    try {
-      debugPrint(
-        '👥 Enrollment: fetching sessions for class IDs ${classIds.join(', ')}',
-      );
-      final sessions = await session_api.ClassSession.fetchAll(
-        query: {'class_ids': classIds.join(',')},
-      );
-      if (sessions.isEmpty) {
-        debugPrint('👥 Enrollment: no sessions returned for classes');
-        return {for (final classId in classIds) classId: 0};
-      }
-
-      final sessionIds = <int>[];
-      final sessionToClass = <int, int>{};
-      for (final session in sessions) {
-        if (session.id <= 0) continue;
-        sessionIds.add(session.id);
-        sessionToClass[session.id] = session.classId;
-      }
-
-      if (sessionIds.isEmpty) {
-        debugPrint('👥 Enrollment: sessions without valid IDs, default to 0');
-        return {for (final classId in classIds) classId: 0};
-      }
-
-      debugPrint(
-        '👥 Enrollment: fetching enrollments for session IDs '
-        '${sessionIds.join(', ')}',
-      );
-      final enrollments = await enrollment_api.Enrollment.fetchAll(
-        query: {'session_ids': sessionIds.join(',')},
-      );
-
-      final counts = {for (final classId in classIds) classId: 0};
-      for (final enrollment in enrollments) {
-        if (enrollment.enrollmentStatus.toLowerCase() != 'active') {
-          continue;
-        }
-        final classId = sessionToClass[enrollment.classSessionId];
-        if (classId == null) {
-          debugPrint(
-            '👥 Enrollment: session ${enrollment.classSessionId} not mapped to class',
-          );
-          continue;
-        }
-        counts[classId] = (counts[classId] ?? 0) + 1;
-      }
-
-      debugPrint('👥 Enrollment: aggregated counts $counts');
-      return counts;
-    } catch (e) {
-      debugPrint('❌ Enrollment: failed to load counts $e');
-      return {for (final classId in classIds) classId: 0};
-    }
   }
 
   @override

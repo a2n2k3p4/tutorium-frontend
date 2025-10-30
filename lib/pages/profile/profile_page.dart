@@ -14,6 +14,7 @@ import 'package:tutorium_frontend/service/teachers.dart' as teacher_api;
 import 'package:tutorium_frontend/service/users.dart' as user_api;
 import 'package:tutorium_frontend/util/cache_user.dart';
 import 'package:tutorium_frontend/util/local_storage.dart';
+import 'package:tutorium_frontend/util/class_enrollment_pipeline.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -189,9 +190,35 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     try {
-      final classes = await class_api.ClassInfo.fetchAll(
-        teacherId: currentUser.teacher!.id,
+      final teacherId = currentUser.teacher!.id;
+      final teacherFullName =
+          '${currentUser.firstName ?? ''} ${currentUser.lastName ?? ''}'
+              .trim()
+              .replaceAll(RegExp(r'\s{2,}'), ' ');
+
+      debugPrint(
+        '📚 Profile: loading classes for teacherId=$teacherId '
+        '(userId=${currentUser.id})',
       );
+      var classes = await class_api.ClassInfo.fetchByTeacher(
+        teacherId,
+        teacherName: teacherFullName.isEmpty ? null : teacherFullName,
+      );
+      debugPrint('📚 Profile: received ${classes.length} classes from backend');
+
+      final enrollmentCounts =
+          await ClassEnrollmentPipeline.aggregateActiveEnrollments(classes);
+
+      classes = classes
+          .map(
+            (cls) => cls.copyWith(
+              enrolledLearners:
+                  enrollmentCounts[cls.id] ?? cls.enrolledLearners ?? 0,
+            ),
+          )
+          .toList();
+
+      classes.sort((a, b) => b.rating.compareTo(a.rating));
 
       if (!mounted) return;
 
