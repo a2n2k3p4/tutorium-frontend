@@ -1180,25 +1180,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Interest Settings Card
-                                if (user?.learner != null)
-                                  _buildSettingsCard(
-                                    icon: Icons.favorite,
-                                    iconColor: Colors.pink,
-                                    title: 'ความชอบของฉัน',
-                                    subtitle:
-                                        'เลือกหมวดหมู่ที่คุณสนใจเพื่อรับคำแนะนำ',
-                                    onTap: () async {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const InterestSettingsPage(),
-                                        ),
-                                      );
-                                    },
-                                  ),
-
                                 if (user?.learner != null)
                                   const SizedBox(height: 12),
 

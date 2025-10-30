@@ -1,11 +1,15 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
+import 'package:tutorium_frontend/pages/widgets/cached_network_image.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
+import 'package:tutorium_frontend/service/class_sessions.dart' as session_api;
 import 'package:tutorium_frontend/service/classes.dart' as class_api;
+import 'package:tutorium_frontend/service/enrollments.dart' as enrollment_api;
 import 'package:tutorium_frontend/service/teachers.dart' as teacher_api;
 import 'package:tutorium_frontend/service/users.dart' as user_api;
-import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
+import 'package:tutorium_frontend/service/rating_service.dart';
 
 class TeacherProfilePage extends StatefulWidget {
   final int teacherId;
@@ -23,6 +27,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   bool isLoading = true;
   bool showAllClasses = false;
   String? errorMessage;
+  final RatingService _ratingService = RatingService();
+  final Map<int, double> _classRatings = {};
 
   @override
   void initState() {
@@ -43,12 +49,51 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
 
     try {
       final teacherData = await teacher_api.Teacher.fetchById(widget.teacherId);
-      final user = await user_api.User.fetchById(teacherData.userId);
-      final classes = await class_api.ClassInfo.fetchAll(
-        teacherId: widget.teacherId,
+      debugPrint(
+        'DEBUG Teacher Data: id=${teacherData.id}, userId=${teacherData.userId}, description="${teacherData.description}", flagCount=${teacherData.flagCount}',
       );
+      final user = await user_api.User.fetchById(teacherData.userId);
+      var classes = await class_api.ClassInfo.fetchByTeacher(
+        widget.teacherId,
+        teacherName: user.firstName != null || user.lastName != null
+            ? '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim()
+            : null,
+      );
+      _classRatings.clear();
 
-      classes.sort((a, b) => b.rating.compareTo(a.rating));
+      final enrollmentCounts = await _fetchEnrollmentCounts(classes);
+
+      // Fetch ratings for all classes
+      debugPrint('🌟 Loading ratings for ${classes.length} classes...');
+      for (final classInfo in classes) {
+        try {
+          final rating = await _ratingService.getRating(classInfo.id);
+          _classRatings[classInfo.id] = rating;
+          debugPrint(
+            '🌟 Class ${classInfo.id} (${classInfo.className}): rating=$rating',
+          );
+        } catch (e) {
+          debugPrint('🌟 Failed to load rating for class ${classInfo.id}: $e');
+          _classRatings[classInfo.id] = 0.0;
+        }
+      }
+
+      classes = classes
+          .map(
+            (classInfo) => classInfo.copyWith(
+              enrolledLearners:
+                  enrollmentCounts[classInfo.id] ??
+                  classInfo.enrolledLearners ??
+                  0,
+            ),
+          )
+          .toList();
+
+      classes.sort((a, b) {
+        final ratingA = _classRatings[a.id] ?? 0.0;
+        final ratingB = _classRatings[b.id] ?? 0.0;
+        return ratingB.compareTo(ratingA);
+      });
 
       if (!mounted) return;
 
@@ -87,25 +132,128 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     }
   }
 
-  ImageProvider<Object>? _avatarImageProvider() {
+  Widget _buildAvatar() {
     final source = teacherUser?.profilePicture;
+
     if (source == null || source.isEmpty) {
-      return null;
+      return CircleAvatar(
+        radius: 50,
+        backgroundColor: Colors.grey.shade200,
+        child: Icon(Icons.person, size: 40, color: Colors.grey.shade500),
+      );
     }
 
+    // Use CachedCircularAvatar for network images (auto-caching & better performance)
     if (source.startsWith('http')) {
-      return NetworkImage(source);
+      return CachedCircularAvatar(
+        imageUrl: source,
+        radius: 50,
+        backgroundColor: Colors.grey.shade200,
+      );
     }
 
+    // Handle base64 encoded images
     try {
       final payload = source.startsWith('data:image')
           ? source.substring(source.indexOf(',') + 1)
           : source;
       final bytes = base64Decode(payload);
-      return MemoryImage(bytes);
+      return CircleAvatar(
+        radius: 50,
+        backgroundColor: Colors.grey.shade200,
+        backgroundImage: MemoryImage(bytes),
+      );
     } catch (e) {
       debugPrint('Failed to decode teacher avatar: $e');
-      return null;
+      return CircleAvatar(
+        radius: 50,
+        backgroundColor: Colors.grey.shade200,
+        child: Icon(Icons.person, size: 40, color: Colors.grey.shade500),
+      );
+    }
+  }
+
+  String _getTeacherDescription() {
+    final description = teacher?.description;
+    final trimmed = description?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      return trimmed;
+    }
+    final fallback = teacherUser?.teacher?.description?.trim();
+    if (fallback != null && fallback.isNotEmpty) {
+      return fallback;
+    }
+    return "No description available";
+  }
+
+  @override
+  void dispose() {
+    _ratingService.clearCache();
+    super.dispose();
+  }
+
+  Future<Map<int, int>> _fetchEnrollmentCounts(
+    List<class_api.ClassInfo> classes,
+  ) async {
+    final classIds = classes.map((cls) => cls.id).where((id) => id > 0).toSet();
+    if (classIds.isEmpty) {
+      debugPrint('👥 Enrollment: no classes found, skip counting');
+      return {};
+    }
+
+    try {
+      debugPrint(
+        '👥 Enrollment: fetching sessions for class IDs ${classIds.join(', ')}',
+      );
+      final sessions = await session_api.ClassSession.fetchAll(
+        query: {'class_ids': classIds.join(',')},
+      );
+      if (sessions.isEmpty) {
+        debugPrint('👥 Enrollment: no sessions returned for classes');
+        return {for (final classId in classIds) classId: 0};
+      }
+
+      final sessionIds = <int>[];
+      final sessionToClass = <int, int>{};
+      for (final session in sessions) {
+        if (session.id <= 0) continue;
+        sessionIds.add(session.id);
+        sessionToClass[session.id] = session.classId;
+      }
+
+      if (sessionIds.isEmpty) {
+        debugPrint('👥 Enrollment: sessions without valid IDs, default to 0');
+        return {for (final classId in classIds) classId: 0};
+      }
+
+      debugPrint(
+        '👥 Enrollment: fetching enrollments for session IDs '
+        '${sessionIds.join(', ')}',
+      );
+      final enrollments = await enrollment_api.Enrollment.fetchAll(
+        query: {'session_ids': sessionIds.join(',')},
+      );
+
+      final counts = {for (final classId in classIds) classId: 0};
+      for (final enrollment in enrollments) {
+        if (enrollment.enrollmentStatus.toLowerCase() != 'active') {
+          continue;
+        }
+        final classId = sessionToClass[enrollment.classSessionId];
+        if (classId == null) {
+          debugPrint(
+            '👥 Enrollment: session ${enrollment.classSessionId} not mapped to class',
+          );
+          continue;
+        }
+        counts[classId] = (counts[classId] ?? 0) + 1;
+      }
+
+      debugPrint('👥 Enrollment: aggregated counts $counts');
+      return counts;
+    } catch (e) {
+      debugPrint('❌ Enrollment: failed to load counts $e');
+      return {for (final classId in classIds) classId: 0};
     }
   }
 
@@ -114,7 +262,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     final displayedClasses = showAllClasses
         ? teacherClasses
         : teacherClasses.take(2).toList();
-    final avatarProvider = _avatarImageProvider();
 
     return Scaffold(
       appBar: AppBar(title: const Text("Teacher Profile")),
@@ -145,18 +292,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                   Center(
                     child: Column(
                       children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage: avatarProvider,
-                          child: avatarProvider == null
-                              ? Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: Colors.grey.shade500,
-                                )
-                              : null,
-                        ),
+                        _buildAvatar(),
                         const SizedBox(height: 12),
                         Text(
                           "${teacherUser!.firstName ?? ''} ${teacherUser!.lastName ?? ''}",
@@ -176,32 +312,24 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                   const SizedBox(height: 24),
                   const Divider(),
 
-                  // 🧾 Teacher Info
+                  // 🧾 About
                   const Text(
-                    "📧 About the Teacher",
+                    "About",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text("Email: ${teacher?.email ?? '-'}"),
-                  const SizedBox(height: 8),
-                  Text(
-                    teacher?.description?.isNotEmpty == true
-                        ? teacher!.description
-                        : "No description",
-                  ),
+                  Text(_getTeacherDescription()),
 
                   const SizedBox(height: 24),
                   const Divider(),
 
-                  // ☎️ Contact Info
+                  // 🚩 Flag Count
                   const Text(
-                    "📞 Contact Info",
+                    "Flag Count",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text("Phone: ${teacherUser!.phoneNumber ?? '-'}"),
-                  const SizedBox(height: 4),
-                  Text("Ban Count: ${teacherUser!.banCount}"),
+                  Text("${teacher!.flagCount}"),
 
                   const SizedBox(height: 24),
                   const Divider(),
@@ -217,35 +345,25 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                       ? const Text("This teacher has no classes yet.")
                       : Column(
                           children: [
-                            ...displayedClasses.map((classInfo) {
-                              final teacherName =
-                                  classInfo.teacherName ??
-                                  "${teacherUser!.firstName ?? ''} ${teacherUser!.lastName ?? ''}"
-                                      .trim();
-                              return Padding(
+                            for (final classInfo in displayedClasses)
+                              Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 8.0,
                                 ),
                                 child: ClassCard(
                                   id: classInfo.id,
                                   className: classInfo.className,
-                                  teacherName: teacherName.isEmpty
-                                      ? 'ไม่ทราบชื่อผู้สอน'
-                                      : teacherName,
-                                  rating: classInfo.rating,
+                                  teacherName:
+                                      classInfo.teacherName ??
+                                      "${teacherUser!.firstName ?? ''} ${teacherUser!.lastName ?? ''}"
+                                          .trim(),
+                                  rating: _classRatings[classInfo.id] ?? 0.0,
                                   enrolledLearner: classInfo.enrolledLearners,
-                                  imageUrl: (() {
-                                    final image =
-                                        classInfo.bannerPictureUrl ??
-                                        classInfo.bannerPicture;
-                                    if (image == null || image.isEmpty) {
-                                      return null;
-                                    }
-                                    return image;
-                                  })(),
+                                  imageUrl:
+                                      classInfo.bannerPictureUrl ??
+                                      classInfo.bannerPicture,
                                 ),
-                              );
-                            }).toList(),
+                              ),
 
                             // 👇 See more / less
                             if (teacherClasses.length > 2)
