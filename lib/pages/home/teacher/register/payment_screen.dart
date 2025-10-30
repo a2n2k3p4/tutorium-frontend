@@ -481,7 +481,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'ตรวจสอบอัตโนมัติทุก 3 วินาที (${_pollingCount}/${_maxPollingAttempts})',
+                  'ตรวจสอบอัตโนมัติทุก 3 วินาที ($_pollingCount/$_maxPollingAttempts)',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],
