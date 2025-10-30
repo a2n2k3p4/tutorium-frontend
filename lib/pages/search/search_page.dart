@@ -380,6 +380,104 @@ class _SearchPageState extends State<SearchPage> {
     return 0.0;
   }
 
+  Set<String> _extractCategoryNames(dynamic item) {
+    final categories = <String>{};
+
+    void addCategoryValue(dynamic value) {
+      if (value is String) {
+        final normalized = value.trim();
+        if (normalized.isNotEmpty) {
+          categories.add(normalized);
+        }
+      }
+    }
+
+    final rawCategories = item is Map<String, dynamic>
+        ? (item['categories'] ?? item['Categories'])
+        : null;
+
+    if (rawCategories is String) {
+      rawCategories
+          .split(',')
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .forEach(addCategoryValue);
+    } else if (rawCategories is List) {
+      for (final entry in rawCategories) {
+        if (entry is String) {
+          addCategoryValue(entry);
+        } else if (entry is Map<String, dynamic>) {
+          addCategoryValue(entry['class_category']);
+          addCategoryValue(entry['category']);
+          addCategoryValue(entry['category_name']);
+          addCategoryValue(entry['name']);
+        }
+      }
+    } else if (rawCategories is Map<String, dynamic>) {
+      addCategoryValue(rawCategories['class_category']);
+      addCategoryValue(rawCategories['category']);
+      addCategoryValue(rawCategories['category_name']);
+      addCategoryValue(rawCategories['name']);
+    }
+
+    final fallbackCategory = item is Map<String, dynamic>
+        ? (item['category'] ?? item['Category'])
+        : null;
+    addCategoryValue(fallbackCategory);
+
+    final primaryCategory = item is Map<String, dynamic>
+        ? (item['primary_category'] ?? item['primaryCategory'])
+        : null;
+    addCategoryValue(primaryCategory);
+
+    return categories;
+  }
+
+  List<dynamic> _applyActiveFilters(List<dynamic> classes) {
+    if (!isFilterActive) {
+      return List<dynamic>.from(classes);
+    }
+
+    final activeCategories = _categoryFilters
+        .map((c) => c.toLowerCase())
+        .toList(growable: false);
+    final localMinRating = minRating;
+    final localMaxRating = maxRating;
+
+    return classes
+        .where((item) {
+          dynamic ratingSource;
+          if (item is Map<String, dynamic>) {
+            ratingSource = item['rating'] ?? item['average_rating'];
+          }
+          final rating = _asDouble(ratingSource);
+
+          if (localMinRating != null && rating < localMinRating) {
+            return false;
+          }
+          if (localMaxRating != null && rating > localMaxRating) {
+            return false;
+          }
+
+          if (activeCategories.isNotEmpty) {
+            final classCategories = _extractCategoryNames(
+              item,
+            ).map((c) => c.toLowerCase()).toSet();
+            if (classCategories.isEmpty) {
+              return false;
+            }
+
+            final hasMatch = activeCategories.any(classCategories.contains);
+            if (!hasMatch) {
+              return false;
+            }
+          }
+
+          return true;
+        })
+        .toList(growable: false);
+  }
+
   Future<void> _search(String query) async {
     final normalizedQuery = query.trim();
 
@@ -405,7 +503,8 @@ class _SearchPageState extends State<SearchPage> {
         maxRating: maxRating,
       );
 
-      final searched = api.searchLocal(data, normalizedQuery);
+      final filteredData = _applyActiveFilters(data);
+      final searched = api.searchLocal(filteredData, normalizedQuery);
       setState(() => _filteredClasses = searched);
     } catch (e) {
       ScaffoldMessenger.of(

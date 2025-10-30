@@ -71,10 +71,6 @@ class _MainNavPageState extends State<MainNavPage> {
   void _handleBottomNavTap(int index) {
     setState(() {
       _currentIndex = index;
-      if (_currentIndex == 0) {
-        // Ensure we always land back on learner mode when returning home via nav bar.
-        isLearner = true;
-      }
     });
     _pageController.animateToPage(
       index,

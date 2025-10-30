@@ -103,20 +103,38 @@ class SearchService {
     num? maxRating,
   }) async {
     try {
-      final queryParams = <String, String>{};
+      final queryParamsAll = <String, List<String>>{};
       if (categories != null && categories.isNotEmpty) {
-        final filteredCategories = categories.where((c) => c != "All").toList();
+        final filteredCategories = categories
+            .where((c) => c != "All")
+            .map((c) => c.trim())
+            .where((c) => c.isNotEmpty)
+            .toList();
         if (filteredCategories.isNotEmpty) {
-          queryParams["category"] = filteredCategories.join(",");
+          queryParamsAll["category"] = filteredCategories;
         }
       }
 
-      if (minRating != null) queryParams["min_rating"] = minRating.toString();
-      if (maxRating != null) queryParams["max_rating"] = maxRating.toString();
+      if (minRating != null) {
+        queryParamsAll["min_rating"] = [minRating.toString()];
+      }
+      if (maxRating != null) {
+        queryParamsAll["max_rating"] = [maxRating.toString()];
+      }
 
-      final uri = Uri.parse(
-        "$baseUrl/classes",
-      ).replace(queryParameters: queryParams);
+      final baseUri = Uri.parse("$baseUrl/classes");
+      final querySegments = <String>[];
+      queryParamsAll.forEach((key, values) {
+        for (final value in values) {
+          querySegments.add(
+            '${Uri.encodeQueryComponent(key)}=${Uri.encodeQueryComponent(value)}',
+          );
+        }
+      });
+      final queryString = querySegments.join('&');
+      final uri = queryString.isEmpty
+          ? baseUri
+          : Uri.parse('${baseUri.toString()}?$queryString');
       debugPrint("Filter request: $uri");
 
       final response = await http.get(uri);
