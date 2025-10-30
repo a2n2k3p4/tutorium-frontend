@@ -10,6 +10,7 @@ import 'package:tutorium_frontend/pages/widgets/cached_network_image.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
 import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
 import 'package:tutorium_frontend/service/classes.dart' as class_api;
+import 'package:tutorium_frontend/service/rating_service.dart';
 import 'package:tutorium_frontend/service/teachers.dart' as teacher_api;
 import 'package:tutorium_frontend/service/users.dart' as user_api;
 import 'package:tutorium_frontend/util/cache_user.dart';
@@ -28,24 +29,15 @@ class _ProfilePageState extends State<ProfilePage> {
   List<class_api.ClassInfo> myClasses = [];
   bool isLoading = true;
   bool isClassesLoading = false;
+  bool isTeacherRatingLoading = false;
   bool isUploadingImage = false;
   bool isEditingDescription = false;
   final TextEditingController _descriptionController = TextEditingController();
   String? userError;
   String? classesError;
-
-  double? get _averageClassRating {
-    if (myClasses.isEmpty) return null;
-    final ratings = myClasses
-        .map((c) => c.rating)
-        .where((rating) => rating > 0)
-        .toList();
-    if (ratings.isEmpty) {
-      return null;
-    }
-    final total = ratings.reduce((value, element) => value + element);
-    return total / ratings.length;
-  }
+  String? teacherRatingError;
+  double? teacherRating;
+  final RatingService _ratingService = RatingService();
 
   @override
   void initState() {
@@ -137,6 +129,7 @@ class _ProfilePageState extends State<ProfilePage> {
         debugPrint('⚠️ Failed to save user profile to cache: $e');
       }
 
+      await fetchTeacherRating(fetchedUser);
       await fetchClasses(fetchedUser);
     } on ApiException catch (e) {
       debugPrint("Error fetching user (API): $e");
@@ -161,6 +154,61 @@ class _ProfilePageState extends State<ProfilePage> {
         });
       } else {
         isLoading = false;
+      }
+    }
+  }
+
+  Future<void> fetchTeacherRating(user_api.User currentUser) async {
+    if (currentUser.teacher == null) {
+      if (mounted) {
+        setState(() {
+          teacherRating = null;
+          teacherRatingError = null;
+        });
+      } else {
+        teacherRating = null;
+        teacherRatingError = null;
+      }
+      return;
+    }
+
+    final teacherId = currentUser.teacher!.id;
+    debugPrint('🌟 Profile: fetching teacher rating for teacherId=$teacherId');
+
+    if (mounted) {
+      setState(() {
+        isTeacherRatingLoading = true;
+        teacherRatingError = null;
+      });
+    } else {
+      isTeacherRatingLoading = true;
+      teacherRatingError = null;
+    }
+
+    try {
+      final rating = await _ratingService.getTeacherRating(teacherId);
+      if (!mounted) return;
+      setState(() {
+        teacherRating = rating;
+      });
+    } catch (e) {
+      debugPrint('❌ Profile: failed to load teacher rating - $e');
+      if (mounted) {
+        setState(() {
+          teacherRating = null;
+          teacherRatingError = 'ไม่สามารถโหลดคะแนนผู้สอนได้';
+        });
+      } else {
+        teacherRating = null;
+        teacherRatingError = 'ไม่สามารถโหลดคะแนนผู้สอนได้';
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isTeacherRatingLoading = false;
+        });
+      } else {
+        isTeacherRatingLoading = false;
       }
     }
   }
@@ -256,6 +304,61 @@ class _ProfilePageState extends State<ProfilePage> {
         isClassesLoading = false;
       }
     }
+  }
+
+  Widget _buildTeacherRatingRow() {
+    if (user?.teacher == null) {
+      return const SizedBox.shrink();
+    }
+
+    if (teacherRatingError != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'Teacher rating : ${teacherRatingError!}',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.red.shade400,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      );
+    }
+
+    if (isTeacherRatingLoading) {
+      return Row(
+        children: const [
+          Text(
+            "Teacher rating : ",
+            style: TextStyle(fontSize: 16, color: Colors.black),
+          ),
+          SizedBox(width: 6),
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ],
+      );
+    }
+
+    final rating = teacherRating ?? 0;
+    final hasRating = rating > 0;
+
+    return Row(
+      children: [
+        const Text(
+          "Teacher rating : ",
+          style: TextStyle(fontSize: 16, color: Colors.black),
+        ),
+        Icon(Icons.star, color: Colors.amber.shade600, size: 18),
+        const SizedBox(width: 4),
+        Text(
+          hasRating ? rating.toStringAsFixed(1) : 'ยังไม่มีคะแนน',
+          style: const TextStyle(fontSize: 16, color: Colors.black),
+        ),
+      ],
+    );
   }
 
   Future<String?> pickImageAndConvertToBase64() async {
@@ -857,33 +960,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         ),
                                       ),
                                     if (user?.teacher != null)
-                                      Row(
-                                        children: [
-                                          const Text(
-                                            "Teacher rating : ",
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                          Icon(
-                                            Icons.star,
-                                            color: Colors.amber.shade600,
-                                            size: 18,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _averageClassRating != null
-                                                ? _averageClassRating!
-                                                      .toStringAsFixed(1)
-                                                : 'ยังไม่มีคะแนน',
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                      _buildTeacherRatingRow(),
                                   ],
                                 )
                               else

@@ -77,4 +77,24 @@ class Teacher {
   static Future<void> delete(int id) async {
     await _client.delete('/teachers/$id');
   }
+
+  static Future<double?> fetchAverageRating(int teacherId) async {
+    try {
+      final response = await _client.getJsonMap(
+        '/teachers/$teacherId/average_rating',
+      );
+      return _parseDouble(response['average_rating']);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
 }

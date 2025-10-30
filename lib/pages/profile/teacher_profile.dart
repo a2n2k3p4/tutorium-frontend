@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
 import 'package:tutorium_frontend/pages/widgets/cached_network_image.dart';
 import 'package:tutorium_frontend/pages/widgets/history_class.dart';
 import 'package:tutorium_frontend/service/classes.dart' as class_api;
@@ -9,6 +6,8 @@ import 'package:tutorium_frontend/service/teachers.dart' as teacher_api;
 import 'package:tutorium_frontend/service/users.dart' as user_api;
 import 'package:tutorium_frontend/service/rating_service.dart';
 import 'package:tutorium_frontend/util/class_enrollment_pipeline.dart';
+import 'package:tutorium_frontend/service/api_client.dart' show ApiException;
+import 'package:tutorium_frontend/util/teacher_avatar_resolver.dart';
 
 class TeacherProfilePage extends StatefulWidget {
   final int teacherId;
@@ -28,6 +27,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   String? errorMessage;
   final RatingService _ratingService = RatingService();
   final Map<int, double> _classRatings = {};
+  double? _teacherAverageRating;
+  TeacherAvatarSource _avatarSource = const TeacherAvatarSource.none();
 
   @override
   void initState() {
@@ -52,6 +53,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
         'DEBUG Teacher Data: id=${teacherData.id}, userId=${teacherData.userId}, description="${teacherData.description}", flagCount=${teacherData.flagCount}',
       );
       final user = await user_api.User.fetchById(teacherData.userId);
+      final avatar = TeacherAvatarResolver.resolve(user.profilePicture);
+      debugPrint('🖼️ Teacher avatar resolved: $avatar');
       var classes = await class_api.ClassInfo.fetchByTeacher(
         widget.teacherId,
         teacherName: user.firstName != null || user.lastName != null
@@ -78,6 +81,13 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
         }
       }
 
+      final teacherAverageRating = await _ratingService.getTeacherRating(
+        widget.teacherId,
+      );
+      debugPrint(
+        '🌟 Teacher ${widget.teacherId} average rating: $teacherAverageRating',
+      );
+
       classes = classes
           .map(
             (classInfo) => classInfo.copyWith(
@@ -101,6 +111,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
         teacher = teacherData;
         teacherUser = user;
         teacherClasses = classes;
+        _teacherAverageRating = teacherAverageRating;
+        _avatarSource = avatar;
         isLoading = false;
       });
     } on ApiException catch (e) {
@@ -133,43 +145,25 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   }
 
   Widget _buildAvatar() {
-    final source = teacherUser?.profilePicture;
-
-    if (source == null || source.isEmpty) {
-      return CircleAvatar(
-        radius: 50,
-        backgroundColor: Colors.grey.shade200,
-        child: Icon(Icons.person, size: 40, color: Colors.grey.shade500),
-      );
-    }
-
-    // Use CachedCircularAvatar for network images (auto-caching & better performance)
-    if (source.startsWith('http')) {
-      return CachedCircularAvatar(
-        imageUrl: source,
-        radius: 50,
-        backgroundColor: Colors.grey.shade200,
-      );
-    }
-
-    // Handle base64 encoded images
-    try {
-      final payload = source.startsWith('data:image')
-          ? source.substring(source.indexOf(',') + 1)
-          : source;
-      final bytes = base64Decode(payload);
-      return CircleAvatar(
-        radius: 50,
-        backgroundColor: Colors.grey.shade200,
-        backgroundImage: MemoryImage(bytes),
-      );
-    } catch (e) {
-      debugPrint('Failed to decode teacher avatar: $e');
-      return CircleAvatar(
-        radius: 50,
-        backgroundColor: Colors.grey.shade200,
-        child: Icon(Icons.person, size: 40, color: Colors.grey.shade500),
-      );
+    switch (_avatarSource.type) {
+      case TeacherAvatarType.network:
+        return CachedCircularAvatar(
+          imageUrl: _avatarSource.url!,
+          radius: 50,
+          backgroundColor: Colors.grey.shade200,
+        );
+      case TeacherAvatarType.memory:
+        return CircleAvatar(
+          radius: 50,
+          backgroundColor: Colors.grey.shade200,
+          backgroundImage: MemoryImage(_avatarSource.bytes!),
+        );
+      case TeacherAvatarType.none:
+        return CircleAvatar(
+          radius: 50,
+          backgroundColor: Colors.grey.shade200,
+          child: Icon(Icons.person, size: 40, color: Colors.grey.shade500),
+        );
     }
   }
 
@@ -186,9 +180,22 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     return "No description available";
   }
 
+  String _formatTeacherRating() {
+    final rating = _teacherAverageRating;
+    if (rating == null || rating < 0) {
+      return 'ยังไม่มีคะแนน';
+    }
+    return rating.toStringAsFixed(1);
+  }
+
   @override
   void dispose() {
     _ratingService.clearCache();
+    if (teacher?.id != null) {
+      _ratingService.clearTeacherCache(teacherId: teacher!.id!);
+    } else {
+      _ratingService.clearTeacherCache();
+    }
     super.dispose();
   }
 
@@ -265,6 +272,26 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                   ),
                   const SizedBox(height: 8),
                   Text("${teacher!.flagCount}"),
+
+                  const SizedBox(height: 24),
+                  const Divider(),
+
+                  // ⭐ Teacher Rating
+                  const Text(
+                    "Teacher Rating",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.star, color: Colors.amber.shade600, size: 20),
+                      const SizedBox(width: 6),
+                      Text(
+                        _formatTeacherRating(),
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 24),
                   const Divider(),
