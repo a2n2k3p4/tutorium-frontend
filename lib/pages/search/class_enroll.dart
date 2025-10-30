@@ -88,6 +88,8 @@ class ClassEnrollPage extends StatefulWidget {
 }
 
 class _ClassEnrollPageState extends State<ClassEnrollPage> {
+  static const double _bottomActionHeight = 112;
+
   class_models.ClassSession? selectedSession;
   ClassInfo? classInfo;
   UserInfo? userInfo;
@@ -1287,6 +1289,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                             ),
                             const SizedBox(height: 8),
                             _buildReviewsSection(),
+                            SizedBox(height: _bottomActionHeight + 24),
                           ],
                         ),
                 ),
@@ -1297,28 +1300,40 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-              color: Colors.white,
-              child: ElevatedButton(
-                onPressed: (selectedSession == null || isProcessingEnrollment)
-                    ? null
-                    : () => _showEnrollConfirmationDialog(context),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
+            child: SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, -6),
+                    ),
+                  ],
                 ),
-                child: isProcessingEnrollment
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+                child: ElevatedButton(
+                  onPressed: (selectedSession == null || isProcessingEnrollment)
+                      ? null
+                      : () => _showEnrollConfirmationDialog(context),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 52),
+                  ),
+                  child: isProcessingEnrollment
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
-                        ),
-                      )
-                    : const Text("Enroll Now"),
+                        )
+                      : const Text("Enroll Now"),
+                ),
               ),
             ),
           ),
