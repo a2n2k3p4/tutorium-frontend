@@ -126,10 +126,6 @@ class _CreateClassPageState extends State<CreateClassPage> {
     });
 
     try {
-      final selectedCategoryObjects = _categories.where(
-        (category) => _selectedCategories.contains(category.id),
-      );
-
       // 2. Format them into the JSON structure your API expects
       final categoryPayload = _categories
           .where((category) => _selectedCategories.contains(category.id))

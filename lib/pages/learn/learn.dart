@@ -68,7 +68,6 @@ class _LearnPageState extends State<LearnPage>
   int? _learnerId;
 
   class_sessions.ClassSession? _classSession;
-  DateTime? _classFinish;
   Timer? _copyResetTimer;
   bool _reviewShown = false;
 
@@ -202,13 +201,10 @@ class _LearnPageState extends State<LearnPage>
         widget.classSessionId,
       );
 
-      final finish = _parseDateTime(session.classFinish);
-
       if (!mounted) return;
 
       setState(() {
         _classSession = session;
-        _classFinish = finish;
       });
     } catch (e) {
       if (!mounted) return;
@@ -216,24 +212,6 @@ class _LearnPageState extends State<LearnPage>
         _errorMessage = 'ไม่สามารถโหลดข้อมูลคลาสได้: $e';
       });
     }
-  }
-
-  DateTime? _parseDateTime(String? raw) {
-    if (raw == null || raw.isEmpty) {
-      return null;
-    }
-    try {
-      final parsed = DateTime.parse(raw);
-      return parsed.isUtc ? parsed.toLocal() : parsed;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  bool _isSessionFinished() {
-    // Check if session has finished
-    if (_classFinish == null) return false;
-    return DateTime.now().isAfter(_classFinish!);
   }
 
   String? _joinDisabledReason() {

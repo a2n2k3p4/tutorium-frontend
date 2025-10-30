@@ -58,7 +58,7 @@ class ScheduleValidator {
   }
 
   /// ตรวจสอบว่า Teacher มี Class Session ทับกันหรือไม่
-  /// Returns: { 'valid': bool, 'message': String?, 'conflictSessions': List<ClassSession>? }
+  /// Returns a map with keys 'valid', 'message', และ 'conflictSessions' (รายการของ ClassSession)
   static Future<Map<String, dynamic>> validateTeacherSchedule({
     required int teacherId,
     required DateTime newStart,
@@ -145,7 +145,7 @@ class ScheduleValidator {
   }
 
   /// ตรวจสอบว่า Learner มี Enrollment ทับกันหรือไม่
-  /// Returns: { 'valid': bool, 'message': String?, 'conflictSessions': List<ClassSession>? }
+  /// Returns a map with keys 'valid', 'message', และ 'conflictSessions' (รายการของ ClassSession)
   static Future<Map<String, dynamic>> validateLearnerSchedule({
     required int learnerId,
     required DateTime newStart,

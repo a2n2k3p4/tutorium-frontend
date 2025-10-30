@@ -294,9 +294,10 @@ class _TeacherRegisterPage extends State<TeacherRegisterPage> {
               );
 
               // ถ้าเติมเงินสำเร็จ ให้ refresh และกลับมาหน้านี้
-              if (result == true && mounted) {
+              if (result == true) {
+                if (!mounted) return;
                 await _checkEligibility();
-
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(

@@ -537,11 +537,13 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
               firstDate: DateTime.now(),
               lastDate: _selectedStartDate,
             );
+            if (!mounted) return;
             if (picked != null) {
               final timePicked = await showTimePicker(
                 context: context,
                 initialTime: TimeOfDay.fromDateTime(_enrollmentDeadline),
               );
+              if (!mounted) return;
               if (timePicked != null) {
                 setState(() {
                   _enrollmentDeadline = DateTime(

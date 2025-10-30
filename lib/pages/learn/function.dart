@@ -265,11 +265,13 @@ JitsiMeetEventListener createEventListener({
       debugPrint(
         "💬 Chat message: from $senderId, message: $message, private: $isPrivate, recipient: $privateRecipient",
       );
-      if (message != null && senderId != null) {
+      final sender = senderId.toString();
+      final text = message.toString();
+      if (sender.trim().isNotEmpty && text.trim().isNotEmpty) {
         chatMessages.add({
-          'senderId': senderId,
-          'message': message,
-          'isPrivate': isPrivate ?? false,
+          'senderId': sender,
+          'message': text,
+          'isPrivate': isPrivate == true,
           'privateRecipient': privateRecipient,
           'timestamp': DateTime.now().toIso8601String(),
         });

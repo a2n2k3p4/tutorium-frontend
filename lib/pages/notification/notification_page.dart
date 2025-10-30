@@ -129,6 +129,8 @@ class _NotificationPageState extends State<NotificationPage>
       debugPrint("🗑️  [PAGE] $key: $beforeCount -> $afterCount");
     }
 
+    if (!mounted) return;
+
     selectedNotifications.clear();
     setState(() => isDeleting = false);
 
@@ -194,6 +196,8 @@ class _NotificationPageState extends State<NotificationPage>
     debugPrint(
       "📖 [PAGE] Mark as read complete: $successCount success, $failCount failed",
     );
+
+    if (!mounted) return;
 
     setState(() => isMarkingAll = false);
 
@@ -264,6 +268,7 @@ class _NotificationPageState extends State<NotificationPage>
             setState(() => n["isRead"] = true);
             final result = await _notiService.markAsRead(n);
             debugPrint("   - Mark as read result: $result");
+            if (!mounted) return;
             Navigator.push(
               context,
               MaterialPageRoute(

@@ -172,6 +172,14 @@ class ClassCacheManager {
     String? teacherName,
     bool forceRefresh = false,
   }) async {
+    List<CachedClassData>? previousCache;
+    if (forceRefresh) {
+      previousCache = _teacherClassesCache[teacherId];
+      if (previousCache == null || previousCache.isEmpty) {
+        previousCache = await _getTeacherClassesFromDisk(teacherId);
+      }
+    }
+
     // Check memory cache first
     if (!forceRefresh && _teacherClassesCache.containsKey(teacherId)) {
       final cached = _teacherClassesCache[teacherId]!;
@@ -207,6 +215,13 @@ class ClassCacheManager {
 
     if (classInfos.isEmpty) {
       _log('⚠️ No classes found for teacher $teacherId');
+      if (previousCache != null && previousCache.isNotEmpty) {
+        _log(
+          '♻️ Using cached data (${previousCache.length}) instead of empty API response for teacher $teacherId',
+        );
+        _teacherClassesCache[teacherId] = previousCache;
+        return previousCache;
+      }
       _teacherClassesCache[teacherId] = [];
       await _saveTeacherClassesToDisk(teacherId, []);
       return [];
@@ -324,6 +339,69 @@ class ClassCacheManager {
       _log('Failed to get teacher $teacherId classes from disk: $e');
     }
     return null;
+  }
+
+  /// Refresh a single class entry without wiping the whole cache
+  Future<void> refreshClass(int classId) async {
+    try {
+      _log('🔄 Refreshing class $classId');
+
+      final info = await class_api.ClassInfo.fetchById(classId);
+
+      double rating = info.rating;
+      try {
+        final avgRating = await class_api.ClassInfo.fetchAverageRating(classId);
+        if (avgRating != null && avgRating > 0) {
+          rating = avgRating;
+        }
+      } catch (e) {
+        _log('Failed to refresh average rating for $classId: $e');
+      }
+
+      final refreshed = CachedClassData(
+        id: info.id,
+        className: info.className,
+        classDescription: info.classDescription,
+        bannerPictureUrl: info.bannerPictureUrl ?? info.bannerPicture,
+        rating: rating,
+        teacherId: info.teacherId,
+        teacherName: info.teacherName,
+      );
+
+      // Update in-memory cache
+      _memoryCache[classId] = refreshed;
+
+      // Persist individual class cache
+      await _saveClassToDisk(refreshed);
+
+      final teacherId = refreshed.teacherId;
+
+      // Update in-memory teacher list cache if available
+      final teacherClasses = _teacherClassesCache[teacherId];
+      if (teacherClasses != null) {
+        final index = teacherClasses.indexWhere((cls) => cls.id == classId);
+        if (index >= 0) {
+          teacherClasses[index] = refreshed;
+        } else {
+          teacherClasses.add(refreshed);
+        }
+      }
+
+      // Update persistent teacher list cache if present
+      final diskClasses = await _getTeacherClassesFromDisk(teacherId);
+      if (diskClasses != null && diskClasses.isNotEmpty) {
+        final index = diskClasses.indexWhere((cls) => cls.id == classId);
+        if (index >= 0) {
+          diskClasses[index] = refreshed;
+          await _saveTeacherClassesToDisk(teacherId, diskClasses);
+        }
+      }
+
+      _log('✅ Class $classId refreshed in cache');
+    } catch (e) {
+      _log('Failed to refresh class $classId: $e');
+      rethrow;
+    }
   }
 
   /// Clear all cache

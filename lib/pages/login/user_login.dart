@@ -71,8 +71,8 @@ Future<LoginResponse> fetchUser(String username, String password) async {
       body: jsonEncode(loginData),
     );
 
-    print('Status code: ${response.statusCode}');
-    print('Response body: ${response.body}');
+    debugPrint('Status code: ${response.statusCode}');
+    debugPrint('Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> jsonMap = jsonDecode(response.body);
@@ -81,7 +81,7 @@ Future<LoginResponse> fetchUser(String username, String password) async {
       throw Exception('Failed to login (status code ${response.statusCode})');
     }
   } catch (e) {
-    print('Exception caught: $e');
+    debugPrint('Exception caught: $e');
     rethrow;
   }
 }

@@ -144,8 +144,7 @@ class _ReviewPageState extends State<ReviewPage> {
                                             size: 18,
                                           ),
                                           Text(
-                                            review.rating?.toStringAsFixed(1) ??
-                                                '0.0',
+                                            review.rating.toStringAsFixed(1),
                                             style: const TextStyle(
                                               fontSize: 14,
                                             ),

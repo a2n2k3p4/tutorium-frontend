@@ -454,6 +454,13 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     return "$hour:$minute $ampm";
   }
 
+  void _showSnackMessage(String message, {Color? backgroundColor}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: backgroundColor),
+    );
+  }
+
   Widget _buildSessionDropdown() {
     if (sessions.isEmpty) return const Text("No sessions available");
 
@@ -470,7 +477,6 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
             final dateStr = _formatDate(session.classStart);
             final timeStr =
                 "${_formatTime(session.classStart)} – ${_formatTime(session.classFinish)}";
-            final deadlineStr = _formatDate(session.enrollmentDeadline);
 
             final enrolledCount = enrollmentCounts[session.id] ?? 0;
             final limit = session.learnerLimit > 20 ? 20 : session.learnerLimit;
@@ -483,7 +489,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
               value: session,
               enabled: !isFull,
               child: Text(
-                '${dateStr} • ${timeStr} • \$${session.price.toStringAsFixed(2)}$statusText',
+                '$dateStr • $timeStr • \$${session.price.toStringAsFixed(2)}$statusText',
                 style: TextStyle(
                   fontSize: 14,
                   color: isFull ? Colors.red : Colors.black,
@@ -652,10 +658,6 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                   showAllReviews = !showAllReviews;
                 });
               },
-              child: Text(
-                showAllReviews ? "Show less" : "See all reviews",
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -665,6 +667,10 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
+              ),
+              child: Text(
+                showAllReviews ? "Show less" : "See all reviews",
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -685,29 +691,6 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
         // Fallback handled by placeholder
       },
     );
-  }
-
-  String _getInitials(String name) {
-    final parts = name.trim().split(' ');
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) {
-      return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
-    }
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-
-  List<Color> _getGradientForRating(int rating) {
-    if (rating >= 5) {
-      return [Colors.purple.shade400, Colors.deepPurple.shade600];
-    } else if (rating >= 4) {
-      return [Colors.blue.shade400, Colors.indigo.shade600];
-    } else if (rating >= 3) {
-      return [Colors.teal.shade400, Colors.cyan.shade600];
-    } else if (rating >= 2) {
-      return [Colors.orange.shade400, Colors.deepOrange.shade600];
-    } else {
-      return [Colors.grey.shade400, Colors.blueGrey.shade600];
-    }
   }
 
   Future<int?> _ensureLearnerId() async {
@@ -747,27 +730,19 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     return null;
   }
 
-  Future<void> _handleEnrollment(BuildContext parentContext) async {
+  Future<void> _handleEnrollment() async {
     if (selectedSession == null) return;
 
     final learnerId = await _ensureLearnerId();
+    if (!mounted) return;
     if (learnerId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(parentContext).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Unable to find learner information. Please relogin.',
-            ),
-          ),
-        );
-      }
+      _showSnackMessage('Unable to find learner information. Please relogin.');
       return;
     }
 
     final session = selectedSession!;
     final currentUser = userInfo;
 
-    // ตรวจสอบว่าผู้ใช้เป็น teacher ของคลาสนี้หรือไม่
     if (currentUser != null && classInfo != null) {
       try {
         final userId = await LocalStorage.getUserId();
@@ -775,14 +750,10 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
           final fullUser = await user_api.User.fetchById(userId);
           if (fullUser.teacher != null &&
               fullUser.teacher!.id == classInfo!.teacherId) {
-            if (mounted) {
-              ScaffoldMessenger.of(parentContext).showSnackBar(
-                const SnackBar(
-                  content: Text('ครูไม่สามารถลงทะเบียนคลาสของตัวเองได้'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
+            _showSnackMessage(
+              'ครูไม่สามารถลงทะเบียนคลาสของตัวเองได้',
+              backgroundColor: Colors.red,
+            );
             return;
           }
         }
@@ -792,47 +763,30 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     }
 
     if (currentUser == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(parentContext).showSnackBar(
-          const SnackBar(content: Text('User information unavailable.')),
-        );
-      }
+      _showSnackMessage('User information unavailable.');
       return;
     }
 
     if (currentUser.balance < session.price) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          parentContext,
-        ).showSnackBar(const SnackBar(content: Text('Insufficient balance.')));
-      }
+      _showSnackMessage('Insufficient balance.');
       return;
     }
 
-    if (mounted) {
-      setState(() {
-        isProcessingEnrollment = true;
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      isProcessingEnrollment = true;
+    });
 
     try {
-      // ตรวจสอบว่าลงทะเบียนซ้ำหรือไม่ก่อนหักเงิน
       final existingEnrollments = await enrollment_api.Enrollment.fetchAll(
         query: {'learner_id': learnerId, 'class_session_id': session.id},
       );
 
       if (existingEnrollments.isNotEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(parentContext).showSnackBar(
-            const SnackBar(
-              content: Text('You are already enrolled in this session.'),
-            ),
-          );
-        }
+        _showSnackMessage('You are already enrolled in this session.');
         return;
       }
 
-      // ตรวจสอบว่าคลาสเต็มหรือไม่ก่อนหักเงิน (max 20 คน)
       final allEnrollments = await enrollment_api.Enrollment.fetchAll();
       final currentEnrollmentCount = allEnrollments
           .where(
@@ -852,20 +806,13 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
       );
 
       if (currentEnrollmentCount >= effectiveLimit) {
-        if (mounted) {
-          ScaffoldMessenger.of(parentContext).showSnackBar(
-            SnackBar(
-              content: Text(
-                'ขอโทษ คลาสนี้เต็มแล้ว (รับได้สูงสุด $effectiveLimit คน)',
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        _showSnackMessage(
+          'ขอโทษ คลาสนี้เต็มแล้ว (รับได้สูงสุด $effectiveLimit คน)',
+          backgroundColor: Colors.red,
+        );
         return;
       }
 
-      // ถ้าไม่ซ้ำ ค่อยหักเงิน
       final originalBalance = currentUser.balance;
       final deductedBalance = _roundToCents(originalBalance - session.price);
       bool balanceDeducted = false;
@@ -910,27 +857,24 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
           }
         }
 
-        if (mounted) {
-          final message = balanceDeducted
+        _showSnackMessage(
+          balanceDeducted
               ? 'Failed to enroll. We restored your balance.'
-              : 'Unable to deduct balance. Please try again.';
-          ScaffoldMessenger.of(
-            parentContext,
-          ).showSnackBar(SnackBar(content: Text(message)));
-        }
+              : 'Unable to deduct balance. Please try again.',
+        );
         return;
       }
 
-      if (mounted) {
-        setState(() {
-          userInfo = currentUser.copyWith(
-            balance: updatedServerUser?.balance ?? deductedBalance,
-            learnerId: learnerId,
-          );
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        userInfo = currentUser.copyWith(
+          balance: updatedServerUser?.balance ?? deductedBalance,
+          learnerId: learnerId,
+        );
+      });
 
       await fetchClassData();
+      if (!mounted) return;
 
       await _createEnrollmentNotification(
         userId: currentUser.id,
@@ -938,20 +882,10 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
         learnerId: learnerId,
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(parentContext).showSnackBar(
-          SnackBar(
-            content: Text('Successfully enrolled in ${session.description} 🎉'),
-          ),
-        );
-      }
+      _showSnackMessage('Successfully enrolled in ${session.description} 🎉');
     } catch (e) {
       debugPrint('❌ Enrollment check failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(parentContext).showSnackBar(
-          const SnackBar(content: Text('Failed to process enrollment.')),
-        );
-      }
+      _showSnackMessage('Failed to process enrollment.');
     } finally {
       if (mounted) {
         setState(() {
@@ -1019,7 +953,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     }
   }
 
-  Future<void> _showEnrollConfirmationDialog(BuildContext parentContext) async {
+  Future<void> _showEnrollConfirmationDialog() async {
     if (isProcessingEnrollment || selectedSession == null) return;
 
     final cachedBalance = await LocalStorage.getUserBalance();
@@ -1031,18 +965,16 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
 
     final currentUser = userInfo;
     if (currentUser == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(parentContext).showSnackBar(
-          const SnackBar(content: Text('User information unavailable.')),
-        );
-      }
+      _showSnackMessage('User information unavailable.');
       return;
     }
+
+    if (!mounted) return;
 
     final hasEnoughBalance = currentUser.balance >= selectedSession!.price;
 
     showDialog(
-      context: parentContext,
+      context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text("Confirm Enrollment"),
@@ -1077,7 +1009,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
               ElevatedButton(
                 onPressed: () async {
                   Navigator.of(dialogContext).pop();
-                  await _handleEnrollment(parentContext);
+                  await _handleEnrollment();
                 },
                 child: const Text("Confirm"),
               )
@@ -1085,12 +1017,13 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
               ElevatedButton(
                 onPressed: () async {
                   Navigator.of(dialogContext).pop();
-                  final result = await Navigator.of(parentContext).push(
+                  final result = await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => PaymentScreen(userId: currentUser.id),
                     ),
                   );
                   if (result == true) {
+                    if (!mounted) return;
                     await fetchClassData();
                   } else {
                     final latestBalance = await LocalStorage.getUserBalance();
@@ -1250,14 +1183,8 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                                         ),
                                       );
                                     } else {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            "Teacher ID not found for $teacherName",
-                                          ),
-                                        ),
+                                      _showSnackMessage(
+                                        "Teacher ID not found for $teacherName",
                                       );
                                     }
                                   },
@@ -1317,7 +1244,7 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
                 child: ElevatedButton(
                   onPressed: (selectedSession == null || isProcessingEnrollment)
                       ? null
-                      : () => _showEnrollConfirmationDialog(context),
+                      : () => _showEnrollConfirmationDialog(),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 52),
                   ),

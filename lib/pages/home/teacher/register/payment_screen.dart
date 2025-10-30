@@ -59,8 +59,6 @@ class _PaymentScreenState extends State<PaymentScreen>
   Timer? _pollingTimer;
   int _pollingCount = 0;
   static const int _maxPollingAttempts = 100; // 100 * 3 sec = 5 minutes
-  String? _qrCodeUrl;
-
   @override
   void initState() {
     super.initState();
@@ -162,7 +160,6 @@ class _PaymentScreenState extends State<PaymentScreen>
 
       // Parse charge ID and QR code
       _chargeId = body['charge_id'] ?? body['id'];
-      _qrCodeUrl = body['qr_code_url'];
 
       if (_chargeId == null || _chargeId!.isEmpty) {
         _updateStatus(
@@ -324,7 +321,6 @@ class _PaymentScreenState extends State<PaymentScreen>
       _statusMessage = 'พร้อมสำหรับการสร้างคำสั่งชำระเงิน';
       _chargeId = null;
       _errorDetails = null;
-      _qrCodeUrl = null;
       _pollingCount = 0;
     });
   }

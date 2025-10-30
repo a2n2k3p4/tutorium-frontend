@@ -132,22 +132,30 @@ class _ReportDialogState extends State<ReportDialog> {
             ),
             const SizedBox(height: 12),
             ..._reportReasons.map((reason) {
-              return RadioListTile<String>(
-                title: Text(reason['label']!),
-                value: reason['value']!,
-                groupValue: _selectedReason,
-                dense: true,
+              final value = reason['value']!;
+              final isSelected = _selectedReason == value;
+              return ListTile(
                 contentPadding: EdgeInsets.zero,
-                onChanged: _isSubmitting
+                dense: true,
+                leading: Icon(
+                  isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
+                ),
+                title: Text(reason['label']!),
+                onTap: _isSubmitting
                     ? null
-                    : (value) {
+                    : () {
                         setState(() {
                           _selectedReason = value;
                           _errorMessage = null;
                         });
                       },
               );
-            }).toList(),
+            }),
             const SizedBox(height: 24),
 
             // Description

@@ -371,14 +371,16 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       final fileName = pickedFile.name.toLowerCase();
-      const allowedExtensions = {'jpg', 'jpeg', 'png'};
+      const allowedExtensions = {'jpg', 'jpeg', 'png', 'heic', 'heif'};
       final extension = fileName.split('.').last;
 
       if (!allowedExtensions.contains(extension)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('รองรับเฉพาะไฟล์ .jpg และ .png เท่านั้น'),
+              content: Text(
+                'รองรับเฉพาะไฟล์ .jpg, .jpeg, .png, .heic และ .heif เท่านั้น',
+              ),
             ),
           );
         }
@@ -387,7 +389,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final bytes = await pickedFile.readAsBytes();
       final base64String = base64Encode(bytes);
-      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      final mimeType = switch (extension) {
+        'png' => 'image/png',
+        'heic' => 'image/heic',
+        'heif' => 'image/heif',
+        _ => 'image/jpeg',
+      };
       return 'data:$mimeType;base64,$base64String';
     } on PlatformException catch (e) {
       debugPrint('Image picker error: $e');
@@ -564,68 +571,6 @@ class _ProfilePageState extends State<ProfilePage> {
         isEditingDescription = true;
       }
     });
-  }
-
-  Widget _buildSettingsCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey[200]!),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: iconColor, size: 28),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 20),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _handleLogout() async {
@@ -1268,29 +1213,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               const Text('ยังไม่มีคลาสสำหรับผู้สอนคนนี้')
                           else
                             const SizedBox(height: 135),
-
-                          // Settings Section
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  "Settings",
-                                  style: TextStyle(
-                                    fontSize: 25,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-
-                                if (user?.learner != null)
-                                  const SizedBox(height: 12),
-
-                                // More settings can be added here
-                              ],
-                            ),
-                          ),
 
                           const SizedBox(height: 20),
 

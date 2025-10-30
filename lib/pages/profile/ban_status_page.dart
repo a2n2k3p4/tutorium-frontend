@@ -370,7 +370,6 @@ class _BanStatusPageState extends State<BanStatusPage> {
     MaterialColor color,
   ) {
     final remaining = 3 - count;
-    final percentage = (count / 3) * 100;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

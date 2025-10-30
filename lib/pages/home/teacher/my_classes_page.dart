@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:tutorium_frontend/models/models.dart';
 import 'package:tutorium_frontend/pages/home/teacher/create_session_page.dart';
-import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
-import 'package:tutorium_frontend/util/class_cache_manager.dart';
 import 'package:tutorium_frontend/pages/learn/learn.dart';
+import 'package:tutorium_frontend/pages/widgets/class_session_service.dart';
+import 'package:tutorium_frontend/service/classes.dart' as class_api;
+import 'package:tutorium_frontend/util/class_cache_manager.dart';
 
 class MyClassesPage extends StatefulWidget {
   final int teacherId;
@@ -23,6 +28,8 @@ class _MyClassesPageState extends State<MyClassesPage> {
   bool _isLoading = true;
   Timer? _refreshTimer;
   final _classCache = ClassCacheManager();
+  final Set<int> _uploadingBannerClassIds = <int>{};
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -107,7 +114,7 @@ class _MyClassesPageState extends State<MyClassesPage> {
       // 1. ดึงรายการ Classes ของ Teacher จาก cache
       final cachedClasses = await _classCache.getClassesByTeacher(
         widget.teacherId,
-        forceRefresh: isBackgroundRefresh,
+        forceRefresh: !isBackgroundRefresh,
       );
 
       final classes = cachedClasses
@@ -362,34 +369,180 @@ class _MyClassesPageState extends State<MyClassesPage> {
 
   Widget _buildClassThumbnail(ClassModel classItem) {
     const double size = 60;
+    final borderRadius = BorderRadius.circular(12);
     final imageUrl = classItem.bannerPicture;
+    final isUploading = _isClassBannerUploading(classItem.id);
 
-    if (imageUrl == null || imageUrl.isEmpty) {
-      return _buildClassThumbnailPlaceholder(size: size);
+    Widget buildPlaceholder() {
+      return Container(
+        color: Colors.blue[50],
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.class_outlined,
+          color: Colors.blue[600],
+          size: size * 0.45,
+        ),
+      );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Image.network(
+    Widget buildImage() {
+      if (imageUrl == null || imageUrl.isEmpty) {
+        return buildPlaceholder();
+      }
+
+      return Image.network(
         imageUrl,
-        width: size,
-        height: size,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) =>
-            _buildClassThumbnailPlaceholder(size: size),
+        errorBuilder: (_, __, ___) => buildPlaceholder(),
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return Stack(
+            children: [
+              buildPlaceholder(),
+              const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    final overlayGradient = Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.black.withValues(alpha: 0.08),
+              Colors.black.withValues(alpha: 0.45),
+            ],
+          ),
+        ),
       ),
     );
-  }
 
-  Widget _buildClassThumbnailPlaceholder({double size = 60}) {
-    return Container(
+    final cameraBadge = Positioned(
+      bottom: 6,
+      right: 6,
+      child: CircleAvatar(
+        radius: 14,
+        backgroundColor: Colors.black.withValues(alpha: 0.55),
+        child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+      ),
+    );
+
+    final changeLabel = Positioned(
+      bottom: 6,
+      left: 6,
+      child: AnimatedOpacity(
+        opacity: isUploading ? 0.0 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Text(
+            'Change',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final centerCamera = Align(
+      alignment: Alignment.center,
+      child: AnimatedScale(
+        scale: isUploading ? 0.75 : 1,
+        duration: const Duration(milliseconds: 200),
+        child: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black.withValues(alpha: 0.28),
+            boxShadow: [
+              if (!isUploading)
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                ),
+            ],
+          ),
+          child: const Icon(
+            Icons.camera_alt_outlined,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
+      ),
+    );
+
+    final uploadingShield = isUploading
+        ? Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.45),
+                borderRadius: borderRadius,
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
+
+    final content = SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(borderRadius: borderRadius, child: buildImage()),
+          ),
+          overlayGradient,
+          centerCamera,
+          cameraBadge,
+          changeLabel,
+          uploadingShield,
+        ],
       ),
-      child: Icon(Icons.image, color: Colors.blue[700], size: size * 0.55),
+    );
+
+    final tooltipMessage = isUploading
+        ? 'Updating banner...'
+        : 'Tap to change banner image';
+
+    return Tooltip(
+      message: tooltipMessage,
+      preferBelow: false,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: borderRadius,
+          onTap: isUploading ? null : () => _handleChangeBanner(classItem),
+          child: content,
+        ),
+      ),
     );
   }
 
@@ -916,6 +1069,97 @@ class _MyClassesPageState extends State<MyClassesPage> {
         ),
       );
     }).toList();
+  }
+
+  bool _isClassBannerUploading(int classId) =>
+      _uploadingBannerClassIds.contains(classId);
+
+  Future<String?> _pickBannerBase64() async {
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) {
+        return null;
+      }
+
+      final extension = pickedFile.name.split('.').last.toLowerCase();
+      const allowedExtensions = {'jpg', 'jpeg', 'png', 'heic', 'heif'};
+      if (!allowedExtensions.contains(extension)) {
+        _showSnack(
+          'รองรับเฉพาะไฟล์ .jpg, .jpeg, .png, .heic และ .heif เท่านั้น',
+          backgroundColor: Colors.red.shade600,
+        );
+        return null;
+      }
+
+      final fileBytes = await pickedFile.readAsBytes();
+      return base64Encode(fileBytes);
+    } on PlatformException catch (e) {
+      debugPrint('Image picker error: $e');
+      _showSnack(
+        'ไม่สามารถเปิดคลังรูปภาพได้',
+        backgroundColor: Colors.red.shade600,
+      );
+    } catch (e) {
+      debugPrint('Unexpected image picker error: $e');
+      _showSnack(
+        'เกิดข้อผิดพลาดในการเลือกรูป',
+        backgroundColor: Colors.red.shade600,
+      );
+    }
+    return null;
+  }
+
+  Future<void> _handleChangeBanner(ClassModel classItem) async {
+    final base64Image = await _pickBannerBase64();
+    if (base64Image == null) return;
+
+    final added = _uploadingBannerClassIds.add(classItem.id);
+    if (added && mounted) {
+      setState(() {});
+    }
+
+    try {
+      final currentInfo = await class_api.ClassInfo.fetchById(classItem.id);
+      final payload = currentInfo.copyWith(bannerPicture: base64Image);
+
+      await class_api.ClassInfo.update(classItem.id, payload);
+
+      // Refresh cache for this class so UI picks up the new banner quickly
+      await _classCache.refreshClass(classItem.id);
+      await _loadData(isBackgroundRefresh: false);
+
+      _showSnack(
+        'อัปเดตรูปหน้าปกคลาสเรียบร้อยแล้ว',
+        backgroundColor: Colors.green.shade600,
+      );
+    } catch (e) {
+      debugPrint('Failed to update banner for class ${classItem.id}: $e');
+      _showSnack(
+        'ไม่สามารถอัปเดตรูปคลาสได้ กรุณาลองใหม่อีกครั้ง',
+        backgroundColor: Colors.red.shade600,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploadingBannerClassIds.remove(classItem.id);
+        });
+      } else {
+        _uploadingBannerClassIds.remove(classItem.id);
+      }
+    }
+  }
+
+  void _showSnack(String message, {Color? backgroundColor}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: backgroundColor),
+    );
   }
 
   Color _getProgressColor(double progress) {

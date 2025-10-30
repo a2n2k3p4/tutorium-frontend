@@ -77,8 +77,8 @@ class _MandatoryReviewDialogState extends State<MandatoryReviewDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false, // Prevent dismissing by back button
+    return PopScope(
+      canPop: false, // Prevent dismissing by back button
       child: AlertDialog(
         title: const Text(
           'กรุณารีวิวคลาสนี้',

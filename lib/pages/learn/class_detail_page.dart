@@ -379,12 +379,10 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   }
 
   Widget _buildScheduleCard(Color primaryColor) {
-    final start = _classSession?.classStart != null
-        ? DateTime.parse(_classSession!.classStart!)
-        : null;
-    final finish = _classSession?.classFinish != null
-        ? DateTime.parse(_classSession!.classFinish!)
-        : null;
+    final startRaw = _classSession?.classStart;
+    final finishRaw = _classSession?.classFinish;
+    final start = startRaw != null ? DateTime.parse(startRaw) : null;
+    final finish = finishRaw != null ? DateTime.parse(finishRaw) : null;
 
     return Container(
       padding: const EdgeInsets.all(20),

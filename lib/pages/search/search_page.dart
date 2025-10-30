@@ -253,8 +253,9 @@ class _SearchPageState extends State<SearchPage> {
     } catch (e) {
       debugPrint('Error toggling popular view: $e');
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoadingPopularToggle = false);
+      if (mounted) {
+        setState(() => _isLoadingPopularToggle = false);
+      }
     }
   }
 
@@ -362,8 +363,9 @@ class _SearchPageState extends State<SearchPage> {
       if (!mounted) return;
       setState(() => _recommendedClasses = []);
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoadingRecommended = false);
+      if (mounted) {
+        setState(() => _isLoadingRecommended = false);
+      }
     }
   }
 
@@ -507,11 +509,14 @@ class _SearchPageState extends State<SearchPage> {
       final searched = api.searchLocal(filteredData, normalizedQuery);
       setState(() => _filteredClasses = searched);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -1177,9 +1182,9 @@ class SearchDataStore extends ChangeNotifier {
 class SearchDataProvider extends InheritedNotifier<SearchDataStore> {
   const SearchDataProvider({
     super.key,
-    required SearchDataStore notifier,
-    required Widget child,
-  }) : super(notifier: notifier, child: child);
+    required super.notifier,
+    required super.child,
+  });
 
   static SearchDataStore of(BuildContext context) {
     final provider = context
