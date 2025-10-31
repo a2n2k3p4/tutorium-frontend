@@ -103,18 +103,17 @@ class SearchService {
     num? maxRating,
   }) async {
     try {
-      final queryParamsAll = <String, List<String>>{};
-      if (categories != null && categories.isNotEmpty) {
-        final filteredCategories = categories
-            .where((c) => c != "All")
-            .map((c) => c.trim())
-            .where((c) => c.isNotEmpty)
-            .toList();
-        if (filteredCategories.isNotEmpty) {
-          queryParamsAll["category"] = filteredCategories;
-        }
-      }
+      final filteredCategories = categories
+          ?.where((c) => c != "All")
+          .map((c) => c.trim())
+          .where((c) => c.isNotEmpty)
+          .toList();
 
+      final queryParamsAll = <String, List<String>>{};
+      if (filteredCategories != null && filteredCategories.isNotEmpty) {
+        queryParamsAll["category"] = filteredCategories;
+        queryParamsAll["detailed"] = ["true"];
+      }
       if (minRating != null) {
         queryParamsAll["min_rating"] = [minRating.toString()];
       }
@@ -131,10 +130,9 @@ class SearchService {
           );
         }
       });
-      final queryString = querySegments.join('&');
-      final uri = queryString.isEmpty
+      final uri = querySegments.isEmpty
           ? baseUri
-          : Uri.parse('${baseUri.toString()}?$queryString');
+          : Uri.parse('${baseUri.toString()}?${querySegments.join('&')}');
       debugPrint("Filter request: $uri");
 
       final response = await http.get(uri);

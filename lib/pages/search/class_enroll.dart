@@ -778,11 +778,16 @@ class _ClassEnrollPageState extends State<ClassEnrollPage> {
     });
 
     try {
-      final existingEnrollments = await enrollment_api.Enrollment.fetchAll(
-        query: {'learner_id': learnerId, 'class_session_id': session.id},
+      final sessionEnrollments = await enrollment_api.Enrollment.fetchAll(
+        query: {'session_ids': session.id},
+      );
+      final hasActiveEnrollment = sessionEnrollments.any(
+        (enrollment) =>
+            enrollment.learnerId == learnerId &&
+            enrollment.enrollmentStatus.toLowerCase() == 'active',
       );
 
-      if (existingEnrollments.isNotEmpty) {
+      if (hasActiveEnrollment) {
         _showSnackMessage('You are already enrolled in this session.');
         return;
       }

@@ -673,7 +673,8 @@ class _SearchPageState extends State<SearchPage> {
               item,
             ).map((c) => c.toLowerCase()).toSet();
             if (classCategories.isEmpty) {
-              return false;
+              // Backend already applied category filter; accept entries even if category metadata is absent.
+              return true;
             }
 
             final hasMatch = activeCategories.any(classCategories.contains);
